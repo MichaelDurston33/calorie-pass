@@ -1,6 +1,6 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 import { PASSES, TIMELINE_LENGTH } from "./passes.js";
-import { hardcorePeriodOn, playStreak } from "./rules.js";
+import { addDays, hardcorePeriodOn, playStreak } from "./rules.js";
 
 const CODE_KEY = "calorie-pass-code";
 const PLAYER_KEY = "calorie-pass-player";
@@ -41,9 +41,20 @@ let myId = storageGet(PLAYER_KEY);
 let players = []; // [{ id, name, logs: [{ date, calories }] }], logs oldest first
 let hardcore = { periods: [], optins: [] }; // periods: [{ start, end }], optins: [player id]
 
+// Add ?hardcore to the address to preview Hardcore Mode on this device only.
+// Nothing is saved and nobody else sees it.
+const PREVIEW_HARDCORE = new URLSearchParams(location.search).has("hardcore");
+
 function setState(state) {
   players = state.players;
   hardcore = state.hardcore;
+  if (PREVIEW_HARDCORE) {
+    const day = today();
+    hardcore = {
+      ...hardcore,
+      periods: [...hardcore.periods, { start: day, end: addDays(day, 6), preview: true }],
+    };
+  }
 }
 
 // ---------- Screens ----------
@@ -91,7 +102,8 @@ function showMain(me) {
     const length = daysBetween(period.start, period.end) + 1;
     $("hc-status").textContent =
       `Day ${dayNumber} of ${length}, last day ${fmtDay(period.end, { weekday: "short" })}. ` +
-      "Go over your goal and your streak resets.";
+      "Go over your goal and your streak resets." +
+      (period.preview ? " (Preview on this device only: nothing is saved.)" : "");
   }
 
   const goal = passFor(me).goal;
