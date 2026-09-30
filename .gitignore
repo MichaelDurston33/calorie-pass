@@ -1,0 +1,8 @@
+# Local secrets (e.g. if you ever use the Supabase CLI with a service_role key)
+.env
+.env.*
+
+# OS / editor clutter
+.DS_Store
+Thumbs.db
+node_modules/
