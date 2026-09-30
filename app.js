@@ -1,5 +1,5 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { SEASON_LENGTH, PRIZES } from "./prizes.js";
+import { PASSES } from "./passes.js";
 
 const CODE_KEY = "calorie-pass-code";
 const PLAYER_KEY = "calorie-pass-player";
@@ -52,7 +52,7 @@ function showMain(players) {
   if (saved && players.some((p) => String(p.id) === saved)) select.value = saved;
 
   renderStatus(players);
-  renderBars(players);
+  renderPasses(players);
 }
 
 function renderStatus(players) {
@@ -63,48 +63,104 @@ function renderStatus(players) {
       : "Not logged today yet.";
 }
 
-function renderBars(players) {
-  $("bars").innerHTML = players.map(renderBar).join("");
+function renderPasses(players) {
+  $("passes").innerHTML = players.map(renderPass).join("");
+
+  // Start each timeline centred on the next tier to earn.
+  for (const timeline of document.querySelectorAll(".timeline")) {
+    const next = timeline.querySelector(".tier.next");
+    if (next) timeline.scrollLeft = next.offsetLeft - (timeline.clientWidth - next.offsetWidth) / 2;
+  }
 }
 
-function renderBar(player) {
+// First tier after `days` where a prize repeating `every` N tiers unlocks.
+function nextPrizeTier(days, every) {
+  return (Math.floor(days / every) + 1) * every;
+}
+
+function renderPass(player) {
   const days = player.days_logged;
-  const tiers = Array.from({ length: SEASON_LENGTH }, (_, i) => i + 1);
-  const prizeAt = new Map(PRIZES.map((p) => [p.tier, p.prize]));
+  const pass = PASSES[player.name] ?? { prizes: [] };
+  const upcoming = pass.prizes.map((p) => ({ ...p, tier: nextPrizeTier(days, p.every) }));
 
-  const stops = tiers
-    .map((t) => {
-      const cls = ["stop", t <= days && "done", prizeAt.has(t) && "prize"]
-        .filter(Boolean)
-        .join(" ");
-      const title = prizeAt.has(t) ? `Tier ${t}: ${prizeAt.get(t)}` : `Tier ${t}`;
-      return `<li class="${cls}" title="${escapeHtml(title)}">${prizeAt.has(t) ? "★" : ""}</li>`;
-    })
-    .join("");
-
-  const unlocked = PRIZES.filter((p) => p.tier <= days);
-  const next = PRIZES.find((p) => p.tier > days);
+  // The pass never ends: show tiers up to the furthest upcoming prize, so
+  // there is always at least one of each prize ahead on the timeline.
+  const end = Math.max(days + 1, ...upcoming.map((p) => p.tier));
+  const tiers = [];
+  for (let t = 1; t <= end; t++) tiers.push(renderTier(t, days, pass.prizes));
 
   return `
-    <section class="bar">
-      <header>
-        <h2>${escapeHtml(player.name)}</h2>
-        <span class="tier">Tier ${Math.min(days, SEASON_LENGTH)} / ${SEASON_LENGTH}</span>
+    <section class="pass" style="${escapeHtml(themeStyle(pass.colors))}">
+      <header class="pass-head">
+        <div>
+          <h2>${escapeHtml(player.name)}</h2>
+          ${
+            player.today_calories != null
+              ? `<span class="today is-done">✓ Logged today</span>`
+              : `<span class="today">Not logged today</span>`
+          }
+        </div>
+        <div class="tier-big"><span>Tier</span><strong>${days}</strong></div>
       </header>
-      <ol class="track">${stops}</ol>
-      <p class="next">${
-        next
-          ? `Next prize at tier ${next.tier}: ${escapeHtml(next.prize)}`
-          : "Season complete!"
-      }</p>
-      ${
-        unlocked.length
-          ? `<ul class="unlocked">${unlocked
-              .map((p) => `<li>★ Tier ${p.tier}: ${escapeHtml(p.prize)}</li>`)
-              .join("")}</ul>`
-          : ""
-      }
+      <div class="timeline-wrap">
+        <button class="scroll-btn" type="button" data-dir="-1" aria-label="Scroll back">‹</button>
+        <div class="timeline"><ol class="tiers">${tiers.join("")}</ol></div>
+        <button class="scroll-btn" type="button" data-dir="1" aria-label="Scroll forward">›</button>
+      </div>
+      ${renderFooter(days, pass.prizes, upcoming)}
     </section>`;
+}
+
+function renderTier(t, days, prizes) {
+  const rewards = prizes.filter((p) => t % p.every === 0);
+  const earned = t <= days;
+  const cls = ["tier", earned && "done", t === days + 1 && "next", rewards.length && "has-prize"]
+    .filter(Boolean)
+    .join(" ");
+  const title = rewards.length ? `Tier ${t}: ${rewards.map((r) => r.name).join(" + ")}` : `Tier ${t}`;
+
+  const cards = rewards
+    .map(
+      (r) => `
+        <div class="reward${earned ? " earned" : ""}">
+          ${earned ? `<span class="check" aria-label="Earned">✓</span>` : ""}
+          <span class="reward-icon">${escapeHtml(r.icon)}</span>
+          <span class="reward-name">${escapeHtml(r.name)}</span>
+        </div>`
+    )
+    .join("");
+
+  return `
+    <li class="${cls}" title="${escapeHtml(title)}">
+      <span class="tier-num">${t}</span>
+      <span class="rail"><span class="node"></span></span>
+      ${cards}
+    </li>`;
+}
+
+function renderFooter(days, prizes, upcoming) {
+  if (!prizes.length) return "";
+
+  const soonest = Math.min(...upcoming.map((p) => p.tier));
+  const toGo = soonest - days;
+  const nextNames = upcoming
+    .filter((p) => p.tier === soonest)
+    .map((p) => `${p.icon} ${p.name}`)
+    .join(" + ");
+  const earned = prizes.map((p) => `${p.icon} ×${Math.floor(days / p.every)}`).join(" · ");
+
+  return `
+    <p class="pass-foot">
+      <span>Next: <strong>${escapeHtml(nextNames)}</strong> in ${toGo} ${toGo === 1 ? "day" : "days"}</span>
+      <span>Earned: ${escapeHtml(earned)}</span>
+    </p>`;
+}
+
+// { prizeInk: "#fff" } -> "--pass-prize-ink: #fff"
+function themeStyle(colors = {}) {
+  return Object.entries(colors)
+    .map(([key, value]) => `--pass-${key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}: ${value}`)
+    .join("; ");
 }
 
 function escapeHtml(s) {
@@ -157,6 +213,13 @@ $("log-form").addEventListener("submit", async (e) => {
   } finally {
     button.disabled = false;
   }
+});
+
+$("passes").addEventListener("click", (e) => {
+  const button = e.target.closest(".scroll-btn");
+  if (!button) return;
+  const timeline = button.parentElement.querySelector(".timeline");
+  timeline.scrollBy({ left: Number(button.dataset.dir) * timeline.clientWidth * 0.8, behavior: "smooth" });
 });
 
 $("logout").addEventListener("click", () => {

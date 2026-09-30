@@ -11,14 +11,14 @@ It's a static site (GitHub Pages) that talks to Supabase. There's no build step 
    ```sql
    update settings set value = 'your-secret-code' where key = 'access_code';
    ```
-3. **Player names:** edit them in Supabase > Table Editor > `players`.
+3. **Player names:** edit them in Supabase > Table Editor > `players`. They must match the names in [passes.js](passes.js).
 4. **Connect the site:** copy the Project URL and the anon / publishable key from
    Supabase > Project Settings > API into [config.js](config.js).
 5. **Deploy:** push to GitHub, then go to Settings > Pages, choose "Deploy from a branch", pick `main` / root.
 
 ## Customising
 
-- Prizes and season length: [prizes.js](prizes.js)
+- Each person's colours and prizes: [passes.js](passes.js)
 - Look and feel: [style.css](style.css)
 
 ## How it's secured

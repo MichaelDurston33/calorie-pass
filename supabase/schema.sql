@@ -101,9 +101,9 @@ grant execute on function get_state(text, date) to anon;
 grant execute on function submit_log(text, int, int, date) to anon;
 
 -- ---------- Seed data ----------
--- Rename players here (or later in Table Editor).
+-- Names must match the keys in passes.js.
 
-insert into players (name) values ('Michael'), ('Friend')
+insert into players (name) values ('Michael'), ('Abbie')
 on conflict (name) do nothing;
 
 insert into settings (key, value) values ('access_code', 'CHANGE-ME')
