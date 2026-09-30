@@ -1,24 +1,13 @@
 // Each person's battle pass: colours and prizes.
 // Names must match the players table in Supabase exactly.
+// Passes are shown on the page in the order they're listed here.
 // One tier = one day logged. A prize with `every: 14` unlocks at tiers 14, 28, 42, ...
 
-export const PASSES = {
-  Michael: {
-    emoji: "🧌",
-    // Drampa blue and Drampa beige
-    colors: {
-      bg: "#f4efe1", // panel
-      border: "#dcd2ba",
-      ink: "#1f5857", // name, tier number
-      track: "#d3c7aa", // timeline not reached yet
-      line: "#3a8a89", // timeline reached
-      node: "#3a8a89",
-      prize: "#2b7271", // earned prize card
-      prizeInk: "#f4efe1",
-    },
-    prizes: [{ every: 20, name: "Video game", icon: "🎮" }],
-  },
+// Tiers shown on the timeline. When someone reaches the end, it extends by
+// the same amount again (100, then 200, ...).
+export const TIMELINE_LENGTH = 100;
 
+export const PASSES = {
   Abbie: {
     emoji: "🐝",
     // Lime green, teal and yellow
@@ -36,5 +25,21 @@ export const PASSES = {
       { every: 14, name: "Plushie", icon: "🧸" },
       { every: 20, name: "Takeaway", icon: "🥡" },
     ],
+  },
+
+  Michael: {
+    emoji: "🧌",
+    // Drampa blue and Drampa beige
+    colors: {
+      bg: "#f4efe1", // panel
+      border: "#dcd2ba",
+      ink: "#1f5857", // name, tier number
+      track: "#d3c7aa", // timeline not reached yet
+      line: "#3a8a89", // timeline reached
+      node: "#3a8a89",
+      prize: "#2b7271", // earned prize card
+      prizeInk: "#f4efe1",
+    },
+    prizes: [{ every: 20, name: "Video game", icon: "🎮" }],
   },
 };

@@ -1,5 +1,5 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { PASSES } from "./passes.js";
+import { PASSES, TIMELINE_LENGTH } from "./passes.js";
 
 const CODE_KEY = "calorie-pass-code";
 const PLAYER_KEY = "calorie-pass-player";
@@ -67,7 +67,8 @@ function renderStatus(players) {
 }
 
 function renderPasses(players) {
-  $("passes").innerHTML = players.map(renderPass).join("");
+  const ordered = [...players].sort((a, b) => passRank(a) - passRank(b));
+  $("passes").innerHTML = ordered.map(renderPass).join("");
 
   // Start each timeline centred on the next tier to earn.
   for (const timeline of document.querySelectorAll(".timeline")) {
@@ -85,14 +86,25 @@ function passFor(player) {
   return PASSES[player.name] ?? { prizes: [] };
 }
 
+// Position in passes.js; anyone not listed there goes last.
+function passRank(player) {
+  const names = Object.keys(PASSES);
+  const index = names.indexOf(player.name);
+  return index === -1 ? names.length : index;
+}
+
 function renderPass(player) {
   const days = player.days_logged;
   const pass = passFor(player);
   const upcoming = pass.prizes.map((p) => ({ ...p, tier: nextPrizeTier(days, p.every) }));
 
-  // The pass never ends: show tiers up to the furthest upcoming prize, so
-  // there is always at least one of each prize ahead on the timeline.
-  const end = Math.max(days + 1, ...upcoming.map((p) => p.tier));
+  // The pass never ends: show TIMELINE_LENGTH tiers, extending by that much
+  // each time the end is reached, and always far enough to show one of each
+  // prize still to come.
+  const end = Math.max(
+    Math.ceil((days + 1) / TIMELINE_LENGTH) * TIMELINE_LENGTH,
+    ...upcoming.map((p) => p.tier)
+  );
   const tiers = [];
   for (let t = 1; t <= end; t++) tiers.push(renderTier(t, days, pass.prizes));
 
