@@ -68,6 +68,39 @@ button:disabled { opacity: 0.6; }
 }
 
 .muted { color: var(--muted); font-size: 0.9rem; margin: 4px 0 0; }
+
+.card h2 { font-size: 1.2rem; }
+
+/* "Who's using this device?" buttons, in each person's pass colours. */
+.pick-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.pick-btn {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 20px 12px;
+  border: 2px solid var(--pass-node, var(--line));
+  border-radius: 12px;
+  background: var(--pass-bg, var(--card));
+  color: var(--pass-ink, var(--text));
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pick-emoji { font-size: 2.4rem; line-height: 1; }
+
+.me-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 4px;
+}
+.me-line .link { font-size: 0.9rem; }
 .error { color: var(--error); margin: 0; min-height: 1.5em; }
 
 /* ---------- Battle pass ----------

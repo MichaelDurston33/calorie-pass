@@ -19,10 +19,20 @@
       </form>
     </section>
 
+    <section id="pick" hidden>
+      <div class="card">
+        <h2>Who's using this device?</h2>
+        <p class="muted">You'll only be asked once on this device.</p>
+        <div id="pick-buttons" class="pick-buttons"></div>
+      </div>
+    </section>
+
     <section id="main" hidden>
       <form id="log-form" class="card">
-        <label for="player">Who are you?</label>
-        <select id="player"></select>
+        <p class="me-line">
+          <span>Logging as <strong id="me"></strong></span>
+          <button id="switch-player" class="link" type="button">Not you?</button>
+        </p>
 
         <label for="calories">Today's calories</label>
         <input id="calories" type="number" inputmode="numeric" min="0" max="20000" required>
@@ -33,7 +43,7 @@
 
       <div id="passes"></div>
 
-      <button id="logout" class="link" type="button">Forget code on this device</button>
+      <button id="logout" class="link" type="button">Forget this device</button>
     </section>
   </main>
 

@@ -32,43 +32,57 @@ async function rpc(fn, args) {
   return body;
 }
 
+// ---------- State ----------
+// The code and who's using this device are remembered, so each is only asked for once.
+
+let code = storageGet(CODE_KEY);
+let myId = storageGet(PLAYER_KEY);
+let players = [];
+
 // ---------- Screens ----------
 
+function showScreen(name) {
+  for (const id of ["login", "pick", "main"]) $(id).hidden = id !== name;
+}
+
 function showLogin(error = "") {
-  $("login").hidden = false;
-  $("main").hidden = true;
+  showScreen("login");
   $("login-error").textContent = error;
 }
 
-function showMain(players) {
-  $("login").hidden = true;
-  $("main").hidden = false;
+// The main screen if we know who's on this device, otherwise ask.
+function show() {
+  const me = players.find((p) => String(p.id) === myId);
+  if (me) showMain(me);
+  else showPicker();
+}
 
-  const select = $("player");
-  const saved = storageGet(PLAYER_KEY);
-  select.innerHTML = players
+function showPicker() {
+  showScreen("pick");
+  $("pick-buttons").innerHTML = inPassOrder(players)
     .map((p) => {
-      const emoji = passFor(p).emoji;
-      return `<option value="${p.id}">${escapeHtml(emoji ? `${emoji} ${p.name}` : p.name)}</option>`;
+      const pass = passFor(p);
+      return `
+        <button class="pick-btn" type="button" data-id="${p.id}" style="${escapeHtml(themeStyle(pass.colors))}">
+          ${pass.emoji ? `<span class="pick-emoji">${escapeHtml(pass.emoji)}</span>` : ""}
+          <span>${escapeHtml(p.name)}</span>
+        </button>`;
     })
     .join("");
-  if (saved && players.some((p) => String(p.id) === saved)) select.value = saved;
+}
 
-  renderStatus(players);
+function showMain(me) {
+  showScreen("main");
+  $("me").textContent = displayName(me);
+  $("status").textContent =
+    me.today_calories != null
+      ? `Logged today: ${me.today_calories} kcal. Submit again to correct it.`
+      : "Not logged today yet.";
   renderPasses(players);
 }
 
-function renderStatus(players) {
-  const me = players.find((p) => String(p.id) === $("player").value);
-  $("status").textContent =
-    me?.today_calories != null
-      ? `Logged today: ${me.today_calories} kcal. Submit again to correct it.`
-      : "Not logged today yet.";
-}
-
 function renderPasses(players) {
-  const ordered = [...players].sort((a, b) => passRank(a) - passRank(b));
-  $("passes").innerHTML = ordered.map(renderPass).join("");
+  $("passes").innerHTML = inPassOrder(players).map(renderPass).join("");
 
   // Start each timeline centred on the next tier to earn.
   for (const timeline of document.querySelectorAll(".timeline")) {
@@ -91,6 +105,16 @@ function passRank(player) {
   const names = Object.keys(PASSES);
   const index = names.indexOf(player.name);
   return index === -1 ? names.length : index;
+}
+
+function inPassOrder(players) {
+  return [...players].sort((a, b) => passRank(a) - passRank(b));
+}
+
+// "🐝 Abbie"
+function displayName(player) {
+  const emoji = passFor(player).emoji;
+  return emoji ? `${emoji} ${player.name}` : player.name;
 }
 
 function renderPass(player) {
@@ -193,14 +217,14 @@ function escapeHtml(s) {
 
 // ---------- Actions ----------
 
-let players = [];
-
-async function load(code) {
+async function load(enteredCode) {
   try {
-    players = await rpc("get_state", { p_code: code, p_today: today() });
+    players = await rpc("get_state", { p_code: enteredCode, p_today: today() });
+    code = enteredCode;
     storageSet(CODE_KEY, code);
-    showMain(players);
+    show();
   } catch (err) {
+    code = null;
     storageRemove(CODE_KEY);
     showLogin(err.message);
   }
@@ -211,9 +235,18 @@ $("login-form").addEventListener("submit", (e) => {
   load($("code").value.trim());
 });
 
-$("player").addEventListener("change", () => {
-  storageSet(PLAYER_KEY, $("player").value);
-  renderStatus(players);
+$("pick-buttons").addEventListener("click", (e) => {
+  const button = e.target.closest(".pick-btn");
+  if (!button) return;
+  myId = button.dataset.id;
+  storageSet(PLAYER_KEY, myId);
+  show();
+});
+
+$("switch-player").addEventListener("click", () => {
+  myId = null;
+  storageRemove(PLAYER_KEY);
+  show();
 });
 
 $("log-form").addEventListener("submit", async (e) => {
@@ -222,14 +255,13 @@ $("log-form").addEventListener("submit", async (e) => {
   button.disabled = true;
   try {
     players = await rpc("submit_log", {
-      p_code: storageGet(CODE_KEY),
-      p_player_id: Number($("player").value),
+      p_code: code,
+      p_player_id: Number(myId),
       p_calories: Number($("calories").value),
       p_date: today(),
     });
-    storageSet(PLAYER_KEY, $("player").value);
     $("calories").value = "";
-    showMain(players);
+    show();
   } catch (err) {
     $("status").textContent = `Couldn't save: ${err.message}`;
   } finally {
@@ -245,12 +277,14 @@ $("passes").addEventListener("click", (e) => {
 });
 
 $("logout").addEventListener("click", () => {
+  code = null;
+  myId = null;
   storageRemove(CODE_KEY);
+  storageRemove(PLAYER_KEY);
   showLogin();
 });
 
 // ---------- Start ----------
 
-const savedCode = storageGet(CODE_KEY);
-if (savedCode) load(savedCode);
+if (code) load(code);
 else showLogin();
