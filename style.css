@@ -7,9 +7,21 @@
   --line: #dcdad4;
   --accent: #2f7d5b;
   --error: #c0392b;
+
+  /* Bee Jim Hardcore Mode */
+  --hc-black: #111111;
+  --hc-yellow: #ffd43b;
+  --hc-edge: 30px; /* width of the bee and zombie frame */
+}
+
+@media (max-width: 480px) {
+  :root { --hc-edge: 24px; }
 }
 
 * { box-sizing: border-box; }
+
+/* Keep `hidden` working on elements that set their own display (cards, banner). */
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -149,6 +161,18 @@ button:disabled { opacity: 0.6; }
 .today { font-size: 0.8rem; color: var(--muted); }
 .today.is-done { color: var(--pass-ink); font-weight: 600; }
 
+.goal {
+  display: inline-block;
+  white-space: nowrap;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--hc-black);
+  color: var(--hc-yellow);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .tier-big { text-align: right; color: var(--pass-ink); line-height: 1; }
 .tier-big span {
   display: block;
@@ -225,6 +249,37 @@ button:disabled { opacity: 0.6; }
   border-color: var(--pass-node);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--pass-node) 25%, transparent);
 }
+.tier.hc.done .node { border-color: var(--hc-black); }
+
+/* Calories and date logged for each tier. */
+.entry {
+  display: grid;
+  justify-items: center;
+  height: 30px;
+  line-height: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kcal { font-size: 0.72rem; font-weight: 700; color: var(--pass-ink); }
+.day { font-size: 0.66rem; color: var(--muted); }
+.tier.hc .kcal {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--hc-black);
+  color: var(--hc-yellow);
+}
+
+/* Tier 0: what ended the last streak. */
+.tier.reset .node {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--pass-bg); /* hides the line behind the emoji */
+  font-size: 1rem;
+  line-height: 1;
+}
+.tier.reset .kcal { color: var(--error); }
 
 .reward {
   position: relative;
@@ -285,3 +340,71 @@ button:disabled { opacity: 0.6; }
   color: var(--muted);
 }
 .pass-foot strong { color: var(--pass-ink); }
+
+/* ---------- Bee Jim Hardcore Mode ---------- */
+
+.hc-card p { margin: 0; }
+.hc-card .link { justify-self: start; }
+.hc-join {
+  justify-self: start;
+  background: var(--hc-black);
+  border-color: var(--hc-black);
+  color: var(--hc-yellow);
+  font-weight: 700;
+  cursor: pointer;
+}
+.warn { color: var(--error); font-weight: 600; }
+
+/* Hazard-stripe banner at the top of the page. */
+.hc-banner {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 5px solid transparent;
+  border-radius: 12px;
+  background:
+    linear-gradient(var(--hc-yellow), var(--hc-yellow)) padding-box,
+    repeating-linear-gradient(-45deg, var(--hc-black) 0 10px, var(--hc-yellow) 10px 20px) border-box;
+  color: var(--hc-black);
+  text-align: center;
+}
+.hc-banner strong { font-size: 1.3rem; font-weight: 900; letter-spacing: 0.05em; line-height: 1.2; }
+.hc-banner span { font-size: 0.9rem; font-weight: 600; }
+
+/* Bees and zombies crawling around the edge of the screen. */
+.hc-frame { display: none; }
+body.hardcore { padding: var(--hc-edge); } /* keeps the page clear of the frame */
+body.hardcore .hc-frame {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.hc-edge {
+  position: absolute;
+  overflow: hidden;
+  background: var(--hc-black);
+  font-size: calc(var(--hc-edge) * 0.6);
+  line-height: var(--hc-edge);
+  white-space: pre;
+}
+.hc-top, .hc-bottom { left: 0; right: 0; height: var(--hc-edge); }
+.hc-top { top: 0; }
+.hc-bottom { bottom: 0; }
+.hc-left, .hc-right { top: 0; bottom: 0; width: var(--hc-edge); text-align: center; }
+.hc-left { left: 0; }
+.hc-right { right: 0; }
+
+.hc-top span, .hc-bottom span { display: inline-block; animation: hc-scroll-x 90s linear infinite; }
+.hc-left span, .hc-right span { display: block; animation: hc-scroll-y 60s linear infinite; }
+.hc-bottom span, .hc-right span { animation-direction: reverse; }
+
+@keyframes hc-scroll-x { to { transform: translateX(-50%); } }
+@keyframes hc-scroll-y { to { transform: translateY(-50%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-edge span { animation: none; }
+}

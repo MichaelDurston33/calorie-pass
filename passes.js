@@ -1,7 +1,9 @@
 // Each person's battle pass: colours and prizes.
 // Names must match the players table in Supabase exactly.
 // Passes are shown on the page in the order they're listed here.
-// One tier = one day logged. A prize with `every: 14` unlocks at tiers 14, 28, 42, ...
+// One tier = one day of your streak (see rules.js). A prize with `every: 14`
+// unlocks at tiers 14, 28, 42, ...
+// `goal`: during Bee Jim Hardcore Mode, logging more than this resets your streak.
 
 // Tiers shown on the timeline. When someone reaches the end, it extends by
 // the same amount again (100, then 200, ...).
@@ -10,6 +12,7 @@ export const TIMELINE_LENGTH = 100;
 export const PASSES = {
   Abbie: {
     emoji: "🐝",
+    goal: 1937,
     // Lime green, teal and yellow
     colors: {
       bg: "#f6fbe8",
@@ -29,6 +32,7 @@ export const PASSES = {
 
   Michael: {
     emoji: "🧌",
+    goal: 1900,
     // Drampa blue and Drampa beige
     colors: {
       bg: "#f4efe1", // panel

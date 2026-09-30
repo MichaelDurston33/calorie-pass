@@ -7,6 +7,14 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Bee Jim Hardcore Mode: bees and zombies around the edge of the screen. -->
+  <div class="hc-frame" aria-hidden="true">
+    <div class="hc-edge hc-top"><span></span></div>
+    <div class="hc-edge hc-bottom"><span></span></div>
+    <div class="hc-edge hc-left"><span></span></div>
+    <div class="hc-edge hc-right"><span></span></div>
+  </div>
+
   <main class="wrap">
     <h1>Calorie Pass</h1>
 
@@ -28,6 +36,11 @@
     </section>
 
     <section id="main" hidden>
+      <div id="hc-banner" class="hc-banner" hidden>
+        <strong>BEE JIM HARDCORE MODE ENABLED</strong>
+        <span id="hc-status"></span>
+      </div>
+
       <form id="log-form" class="card">
         <p class="me-line">
           <span>Logging as <strong id="me"></strong></span>
@@ -42,6 +55,8 @@
       </form>
 
       <div id="passes"></div>
+
+      <section id="hardcore" class="card hc-card" hidden></section>
 
       <button id="logout" class="link" type="button">Forget this device</button>
     </section>
