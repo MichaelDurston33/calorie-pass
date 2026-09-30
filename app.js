@@ -47,7 +47,10 @@ function showMain(players) {
   const select = $("player");
   const saved = storageGet(PLAYER_KEY);
   select.innerHTML = players
-    .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
+    .map((p) => {
+      const emoji = passFor(p).emoji;
+      return `<option value="${p.id}">${escapeHtml(emoji ? `${emoji} ${p.name}` : p.name)}</option>`;
+    })
     .join("");
   if (saved && players.some((p) => String(p.id) === saved)) select.value = saved;
 
@@ -78,9 +81,13 @@ function nextPrizeTier(days, every) {
   return (Math.floor(days / every) + 1) * every;
 }
 
+function passFor(player) {
+  return PASSES[player.name] ?? { prizes: [] };
+}
+
 function renderPass(player) {
   const days = player.days_logged;
-  const pass = PASSES[player.name] ?? { prizes: [] };
+  const pass = passFor(player);
   const upcoming = pass.prizes.map((p) => ({ ...p, tier: nextPrizeTier(days, p.every) }));
 
   // The pass never ends: show tiers up to the furthest upcoming prize, so
@@ -92,13 +99,16 @@ function renderPass(player) {
   return `
     <section class="pass" style="${escapeHtml(themeStyle(pass.colors))}">
       <header class="pass-head">
-        <div>
-          <h2>${escapeHtml(player.name)}</h2>
-          ${
-            player.today_calories != null
-              ? `<span class="today is-done">✓ Logged today</span>`
-              : `<span class="today">Not logged today</span>`
-          }
+        <div class="who">
+          ${pass.emoji ? `<span class="avatar" aria-hidden="true">${escapeHtml(pass.emoji)}</span>` : ""}
+          <div>
+            <h2>${escapeHtml(player.name)}</h2>
+            ${
+              player.today_calories != null
+                ? `<span class="today is-done">✓ Logged today</span>`
+                : `<span class="today">Not logged today</span>`
+            }
+          </div>
         </div>
         <div class="tier-big"><span>Tier</span><strong>${days}</strong></div>
       </header>

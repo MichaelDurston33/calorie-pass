@@ -4,6 +4,7 @@
 
 export const PASSES = {
   Michael: {
+    emoji: "🧌",
     // Drampa blue and Drampa beige
     colors: {
       bg: "#f4efe1", // panel
@@ -19,6 +20,7 @@ export const PASSES = {
   },
 
   Abbie: {
+    emoji: "🐝",
     // Lime green, teal and yellow
     colors: {
       bg: "#f6fbe8",
