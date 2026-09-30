@@ -31,6 +31,15 @@ It's a static site (GitHub Pages) that talks to Supabase. There's no build step 
 - Each person's colours, prizes and Hardcore goal: [passes.js](passes.js)
 - The streak rules: [rules.js](rules.js)
 - Look and feel: [style.css](style.css)
+- The logo: replace [static/logo.png](static/logo.png), then remake the tab and app icons with
+  `powershell -ExecutionPolicy Bypass -File tools\make-icons.ps1`
+
+## Installing it as an app
+
+- **Android, or Chrome/Edge on a computer:** open the site, then use the browser menu's "Install app"
+  (or the install icon at the end of the address bar).
+- **iPhone:** open the site in Safari, then Share > Add to Home Screen. The home-screen app keeps its
+  own storage, separate from Safari, so you'll enter the code and pick your name once more there.
 
 ## How it's secured
 
