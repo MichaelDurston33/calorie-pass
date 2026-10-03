@@ -14,6 +14,15 @@ export function addDays(date, days) {
   return d.toISOString().slice(0, 10);
 }
 
+// Someone's goal on `date`. `goal` is a number, or a list of changes, oldest
+// first: [{ kcal: 1937 }, { from: "2026-10-03", kcal: 1800 }].
+export function goalOn(goal, date) {
+  if (!Array.isArray(goal)) return goal;
+  let kcal;
+  for (const g of goal) if (!g.from || g.from <= date) kcal = g.kcal;
+  return kcal;
+}
+
 // The Hardcore period covering `date`, if there is one.
 export function hardcorePeriodOn(date, periods) {
   return periods.find((p) => p.start <= date && date <= p.end);
@@ -22,7 +31,7 @@ export function hardcorePeriodOn(date, periods) {
 // Replays someone's logs (oldest first) and returns:
 //   run    - the logs making up the current streak, so tier 1 is run[0]
 //   reset  - what ended the previous streak, if anything:
-//            { date, calories } for going over goal in Hardcore,
+//            { date, calories, goal } for going over goal in Hardcore,
 //            { date, missed: true } for a day with nothing logged
 //   earned - how many of each prize have been earned, in the same order as `prizes`
 export function playStreak(logs, { goal, prizes, periods, today }) {
@@ -39,9 +48,10 @@ export function playStreak(logs, { goal, prizes, periods, today }) {
     last = log.date;
 
     const hardcore = Boolean(hardcorePeriodOn(log.date, periods));
-    if (hardcore && log.calories > goal) {
+    const limit = goalOn(goal, log.date);
+    if (hardcore && log.calories > limit) {
       run = [];
-      reset = { date: log.date, calories: log.calories };
+      reset = { date: log.date, calories: log.calories, goal: limit };
       continue;
     }
 

@@ -1,6 +1,6 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 import { PASSES, TIMELINE_LENGTH } from "./passes.js";
-import { addDays, hardcorePeriodOn, playStreak } from "./rules.js";
+import { addDays, goalOn, hardcorePeriodOn, playStreak } from "./rules.js";
 
 const CODE_KEY = "calorie-pass-code";
 const PLAYER_KEY = "calorie-pass-player";
@@ -106,7 +106,7 @@ function showMain(me) {
       (period.preview ? " (Preview on this device only: nothing is saved.)" : "");
   }
 
-  const goal = passFor(me).goal;
+  const goal = goalOn(passFor(me).goal, day);
   const todays = me.logs.find((l) => l.date === day);
   $("me").textContent = displayName(me);
   $("status").textContent = [
@@ -176,11 +176,12 @@ function renderPass(player, day) {
     Math.ceil((streak + 1) / TIMELINE_LENGTH) * TIMELINE_LENGTH,
     ...upcoming.map((p) => p.tier)
   );
-  const tiers = reset ? [renderReset(reset, pass.goal)] : [];
+  const tiers = reset ? [renderReset(reset)] : [];
   for (let t = 1; t <= end; t++) tiers.push(renderTier(t, run[t - 1], streak, pass.prizes));
 
   const loggedToday = player.logs.some((l) => l.date === day);
-  const showGoal = pass.goal && hardcorePeriodOn(day, hardcore.periods);
+  const goalToday = goalOn(pass.goal, day);
+  const showGoal = goalToday && hardcorePeriodOn(day, hardcore.periods);
 
   return `
     <section class="pass" style="${escapeHtml(themeStyle(pass.colors))}">
@@ -194,7 +195,7 @@ function renderPass(player, day) {
                 ? `<span class="today is-done">✓ Logged today</span>`
                 : `<span class="today">Not logged today</span>`
             }
-            ${showGoal ? `<span class="goal">Goal ${fmtKcal(pass.goal)} kcal</span>` : ""}
+            ${showGoal ? `<span class="goal">Goal ${fmtKcal(goalToday)} kcal</span>` : ""}
           </div>
         </div>
         <div class="tier-big"><span>Streak</span><strong>${streak}</strong></div>
@@ -244,10 +245,10 @@ function renderTier(t, log, streak, prizes) {
 }
 
 // Tier 0: what ended the last streak, so it stays visible to both of you.
-function renderReset(reset, goal) {
+function renderReset(reset) {
   const title = reset.missed
     ? `Streak reset: nothing logged on ${fmtDay(reset.date)}`
-    : `Streak reset: ${fmtKcal(reset.calories)} kcal on ${fmtDay(reset.date)}, over the ${fmtKcal(goal)} kcal Hardcore goal`;
+    : `Streak reset: ${fmtKcal(reset.calories)} kcal on ${fmtDay(reset.date)}, over the ${fmtKcal(reset.goal)} kcal Hardcore goal`;
   return `
     <li class="tier reset" title="${escapeHtml(title)}">
       <span class="tier-num">0</span>
@@ -294,7 +295,7 @@ function renderHardcoreCard(me, day, period) {
   const others = players.filter((p) => p.id !== me.id);
   const othersIn = others.filter((p) => hardcore.optins.includes(p.id));
   const waitingOnMe = !meIn && othersIn.length > 0;
-  const goal = passFor(me).goal;
+  const goal = goalOn(passFor(me).goal, day);
   const names = (list) => escapeHtml(list.map(displayName).join(" and "));
 
   let body;
@@ -307,7 +308,7 @@ function renderHardcoreCard(me, day, period) {
     const overToday = waitingOnMe
       ? players.filter((p) => {
           const log = p.logs.find((l) => l.date === day);
-          const g = passFor(p).goal;
+          const g = goalOn(passFor(p).goal, day);
           return log && g && log.calories > g;
         })
       : [];

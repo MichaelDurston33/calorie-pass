@@ -4,6 +4,8 @@
 // One tier = one day of your streak (see rules.js). A prize with `every: 14`
 // unlocks at tiers 14, 28, 42, ...
 // `goal`: during Bee Jim Hardcore Mode, logging more than this resets your streak.
+// To change it from a given day without affecting earlier days, list the changes:
+//   goal: [{ kcal: 1937 }, { from: "2026-10-03", kcal: 1800 }]
 
 // Tiers shown on the timeline. When someone reaches the end, it extends by
 // the same amount again (100, then 200, ...).
@@ -12,7 +14,7 @@ export const TIMELINE_LENGTH = 100;
 export const PASSES = {
   Abbie: {
     emoji: "🐝",
-    goal: 1937,
+    goal: [{ kcal: 1937 }, { from: "2026-10-03", kcal: 1800 }],
     // Lime green, teal and yellow
     colors: {
       bg: "#f6fbe8",
