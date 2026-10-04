@@ -50,6 +50,7 @@ h2 { margin: 0; }
 }
 
 label { font-weight: 600; font-size: 0.9rem; }
+.optional { font-weight: 400; color: var(--muted); }
 
 input, select, button {
   font: inherit;
@@ -251,16 +252,17 @@ button:disabled { opacity: 0.6; }
 }
 .tier.hc.done .node { border-color: var(--hc-black); }
 
-/* Calories and date logged for each tier. */
+/* Calories, steps and date logged for each tier. */
 .entry {
   display: grid;
   justify-items: center;
-  height: 30px;
+  height: 45px;
   line-height: 15px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .kcal { font-size: 0.72rem; font-weight: 700; color: var(--pass-ink); }
+.steps { font-size: 0.66rem; color: var(--pass-ink); }
 .day { font-size: 0.66rem; color: var(--muted); }
 .tier.hc .kcal {
   padding: 0 4px;

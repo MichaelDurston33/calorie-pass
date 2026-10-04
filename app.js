@@ -1,5 +1,5 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { PASSES, TIMELINE_LENGTH } from "./passes.js";
+import { KCAL_PER_STEP, PASSES, TIMELINE_LENGTH } from "./passes.js";
 import { addDays, goalOn, hardcorePeriodOn, playStreak } from "./rules.js";
 
 const CODE_KEY = "calorie-pass-code";
@@ -38,7 +38,7 @@ async function rpc(fn, args) {
 
 let code = storageGet(CODE_KEY);
 let myId = storageGet(PLAYER_KEY);
-let players = []; // [{ id, name, logs: [{ date, calories }] }], logs oldest first
+let players = []; // [{ id, name, logs: [{ date, calories, steps }] }], logs oldest first
 let hardcore = { periods: [], optins: [] }; // periods: [{ start, end }], optins: [player id]
 
 // Add ?hardcore to the address to preview Hardcore Mode on this device only.
@@ -111,7 +111,7 @@ function showMain(me) {
   $("me").textContent = displayName(me);
   $("status").textContent = [
     todays
-      ? `Logged today: ${fmtKcal(todays.calories)} kcal. Submit again to correct it.`
+      ? `Logged today: ${describeDay(todays)}. Submit again to correct it.`
       : "Not logged today yet. Log before midnight to keep your streak.",
     period && goal ? `Hardcore goal: ${fmtKcal(goal)} kcal or less.` : "",
   ]
@@ -218,7 +218,7 @@ function renderTier(t, log, streak, prizes) {
     .join(" ");
   const title = [
     `Tier ${t}`,
-    log && `${fmtDay(log.date)}: ${fmtKcal(log.calories)} kcal${log.hardcore ? " (Hardcore)" : ""}`,
+    log && `${fmtDay(log.date)}: ${describeDay(log)}${log.hardcore ? " (Hardcore)" : ""}`,
     rewards.length && rewards.map((r) => r.name).join(" + "),
   ]
     .filter(Boolean)
@@ -239,7 +239,7 @@ function renderTier(t, log, streak, prizes) {
     <li class="${cls}" title="${escapeHtml(title)}">
       <span class="tier-num">${t}</span>
       <span class="rail"><span class="node"></span></span>
-      ${renderEntry(log && fmtKcal(log.calories), log?.date)}
+      ${renderEntry(log && fmtKcal(log.calories), log?.date, log?.steps)}
       ${cards}
     </li>`;
 }
@@ -257,12 +257,25 @@ function renderReset(reset) {
     </li>`;
 }
 
-// Calories and date under a tier. Always there (empty for tiers still to come)
+// Calories burned walking, rounded down.
+function stepKcal(steps) {
+  return Math.floor(steps * KCAL_PER_STEP);
+}
+
+// "1,850 kcal" or "1,850 kcal − 200 kcal from 8,000 steps = 1,650 kcal net"
+function describeDay(log) {
+  if (!log.steps) return `${fmtKcal(log.calories)} kcal`;
+  const burned = stepKcal(log.steps);
+  return `${fmtKcal(log.calories)} kcal − ${fmtKcal(burned)} kcal from ${fmtKcal(log.steps)} steps = ${fmtKcal(log.calories - burned)} kcal net`;
+}
+
+// Calories, steps and date under a tier. Always there (empty for tiers still to come)
 // so prize cards line up.
-function renderEntry(text, date) {
+function renderEntry(text, date, steps) {
   return `
     <span class="entry">
       <span class="kcal">${text ? escapeHtml(text) : ""}</span>
+      <span class="steps">${steps ? `👟 −${fmtKcal(stepKcal(steps))}` : ""}</span>
       <span class="day">${date ? escapeHtml(fmtDay(date)) : ""}</span>
     </span>`;
 }
@@ -401,9 +414,12 @@ $("log-form").addEventListener("submit", async (e) => {
         p_player_id: Number(myId),
         p_calories: Number($("calories").value),
         p_date: today(),
+        // Only sent when filled in; blank keeps any steps already logged today.
+        ...($("steps").value !== "" && { p_steps: Number($("steps").value) }),
       })
     );
     $("calories").value = "";
+    $("steps").value = "";
     show();
   } catch (err) {
     $("status").textContent = `Couldn't save: ${err.message}`;

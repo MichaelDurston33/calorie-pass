@@ -19,6 +19,9 @@ create table if not exists calorie_logs (
   unique (player_id, log_date) -- one log per player per day
 );
 
+-- Optional, added later: steps walked that day.
+alter table calorie_logs add column if not exists steps int check (steps between 0 and 200000);
+
 create table if not exists settings (
   key text primary key,
   value text not null
@@ -80,7 +83,7 @@ begin
         'id', p.id,
         'name', p.name,
         'logs', (
-          select coalesce(json_agg(json_build_object('date', l.log_date, 'calories', l.calories)
+          select coalesce(json_agg(json_build_object('date', l.log_date, 'calories', l.calories, 'steps', l.steps)
                                    order by l.log_date), '[]'::json)
           from calorie_logs l
           where l.player_id = p.id
@@ -103,9 +106,13 @@ begin
 end;
 $$;
 
--- Log (or correct) a day's calories. Re-submitting the same day updates it
--- rather than adding progress twice.
-create or replace function submit_log(p_code text, p_player_id int, p_calories int, p_date date)
+-- Replaced by submit_log with p_steps below.
+drop function if exists submit_log(text, int, int, date);
+
+-- Log (or correct) a day's calories, and optionally steps. Re-submitting the
+-- same day updates it rather than adding progress twice; leaving steps blank
+-- keeps any steps already logged that day.
+create or replace function submit_log(p_code text, p_player_id int, p_calories int, p_date date, p_steps int default null)
 returns json
 language plpgsql
 security definer
@@ -119,9 +126,11 @@ begin
     raise exception 'Date out of range';
   end if;
 
-  insert into calorie_logs (player_id, log_date, calories)
-  values (p_player_id, p_date, p_calories)
-  on conflict (player_id, log_date) do update set calories = excluded.calories;
+  insert into calorie_logs (player_id, log_date, calories, steps)
+  values (p_player_id, p_date, p_calories, p_steps)
+  on conflict (player_id, log_date) do update
+    set calories = excluded.calories,
+        steps = coalesce(excluded.steps, calorie_logs.steps);
 
   return get_state(p_code);
 end;
@@ -168,7 +177,7 @@ $$;
 -- Only these functions are callable from the website.
 revoke execute on function check_code(text) from public, anon, authenticated;
 grant execute on function get_state(text) to anon;
-grant execute on function submit_log(text, int, int, date) to anon;
+grant execute on function submit_log(text, int, int, date, int) to anon;
 grant execute on function set_hardcore_optin(text, int, boolean, date) to anon;
 
 -- ---------- Seed data ----------

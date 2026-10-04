@@ -11,6 +11,12 @@
 // the same amount again (100, then 200, ...).
 export const TIMELINE_LENGTH = 100;
 
+// Calories walking burns per step, deducted from what you ate when you log steps.
+// Conservative: walking costs about 0.5 kcal per kg per km on top of resting
+// (lower than the ~0.8 often quoted for brisk walking). At 71 kg that's ~35 kcal/km,
+// and at ~1,400 steps/km that's 0.025 kcal a step, so 10,000 steps = 250 kcal.
+export const KCAL_PER_STEP = 0.025;
+
 export const PASSES = {
   Abbie: {
     emoji: "🐝",
