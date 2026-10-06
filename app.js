@@ -1,6 +1,6 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { KCAL_PER_STEP, PASSES, TIMELINE_LENGTH } from "./passes.js";
-import { addDays, goalOn, hardcorePeriodOn, playStreak } from "./rules.js";
+import { PASSES, TIMELINE_LENGTH } from "./passes.js";
+import { addDays, goalOn, hardcorePeriodOn, netCalories, playStreak, stepKcal } from "./rules.js";
 
 const CODE_KEY = "calorie-pass-code";
 const PLAYER_KEY = "calorie-pass-player";
@@ -248,18 +248,13 @@ function renderTier(t, log, streak, prizes) {
 function renderReset(reset) {
   const title = reset.missed
     ? `Streak reset: nothing logged on ${fmtDay(reset.date)}`
-    : `Streak reset: ${fmtKcal(reset.calories)} kcal on ${fmtDay(reset.date)}, over the ${fmtKcal(reset.goal)} kcal Hardcore goal`;
+    : `Streak reset: ${fmtKcal(reset.calories)} kcal net on ${fmtDay(reset.date)}, over the ${fmtKcal(reset.goal)} kcal Hardcore goal`;
   return `
     <li class="tier reset" title="${escapeHtml(title)}">
       <span class="tier-num">0</span>
       <span class="rail"><span class="node">💥</span></span>
       ${renderEntry(reset.missed ? "Missed" : fmtKcal(reset.calories), reset.date)}
     </li>`;
-}
-
-// Calories burned walking, rounded down.
-function stepKcal(steps) {
-  return Math.floor(steps * KCAL_PER_STEP);
 }
 
 // "1,850 kcal" or "1,850 kcal − 200 kcal from 8,000 steps = 1,650 kcal net"
@@ -322,7 +317,7 @@ function renderHardcoreCard(me, day, period) {
       ? players.filter((p) => {
           const log = p.logs.find((l) => l.date === day);
           const g = goalOn(passFor(p).goal, day);
-          return log && g && log.calories > g;
+          return log && g && netCalories(log) > g;
         })
       : [];
     body = `

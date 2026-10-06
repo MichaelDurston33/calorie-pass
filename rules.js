@@ -2,11 +2,24 @@
 //
 // - Log something every day to keep your streak going.
 // - Miss a day, in either mode, and your streak goes back to 0.
-// - During Bee Jim Hardcore Mode, logging more than your goal also sends it back to 0.
+// - During Bee Jim Hardcore Mode, going over your goal also sends it back to 0.
+//   Logged steps count: the goal is checked against calories eaten minus steps.
 // - Prizes are earned each time your streak reaches their tier. A reset
 //   doesn't take them away, and climbing back up earns them again.
 //
 // Dates are "YYYY-MM-DD" strings, which compare correctly as plain strings.
+
+import { KCAL_PER_STEP } from "./passes.js";
+
+// Calories burned walking, rounded down.
+export function stepKcal(steps) {
+  return Math.floor((steps || 0) * KCAL_PER_STEP);
+}
+
+// What a day counts as: calories eaten minus any logged steps.
+export function netCalories(log) {
+  return log.calories - stepKcal(log.steps);
+}
 
 export function addDays(date, days) {
   const d = new Date(`${date}T00:00:00Z`);
@@ -31,7 +44,7 @@ export function hardcorePeriodOn(date, periods) {
 // Replays someone's logs (oldest first) and returns:
 //   run    - the logs making up the current streak, so tier 1 is run[0]
 //   reset  - what ended the previous streak, if anything:
-//            { date, calories, goal } for going over goal in Hardcore,
+//            { date, calories (net of steps), goal } for going over goal in Hardcore,
 //            { date, missed: true } for a day with nothing logged
 //   earned - how many of each prize have been earned, in the same order as `prizes`
 export function playStreak(logs, { goal, prizes, periods, today }) {
@@ -49,9 +62,9 @@ export function playStreak(logs, { goal, prizes, periods, today }) {
 
     const hardcore = Boolean(hardcorePeriodOn(log.date, periods));
     const limit = goalOn(goal, log.date);
-    if (hardcore && log.calories > limit) {
+    if (hardcore && netCalories(log) > limit) {
       run = [];
-      reset = { date: log.date, calories: log.calories, goal: limit };
+      reset = { date: log.date, calories: netCalories(log), goal: limit };
       continue;
     }
 
