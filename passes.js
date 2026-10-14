@@ -34,7 +34,7 @@ export const PASSES = {
     },
     prizes: [
       { every: 14, name: "Plushie", icon: "🧸" },
-      { every: 20, name: "Takeaway", icon: "🥡" },
+      { every: 20, name: "Merch", icon: "👕" },
     ],
   },
 
@@ -52,6 +52,6 @@ export const PASSES = {
       prize: "#2b7271", // earned prize card
       prizeInk: "#f4efe1",
     },
-    prizes: [{ every: 20, name: "Video game", icon: "🎮" }],
+    prizes: [{ every: 20, name: "Takeaway", icon: "🥡" }],
   },
 };
