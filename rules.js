@@ -4,9 +4,11 @@
 // - Miss a day, in either mode, and your streak goes back to 0.
 //   Unless you have a streak freeze: one is earned every FREEZE_EVERY days of a
 //   streak, and each covers one missed day (used automatically). Freezes are
-//   kept after a reset, but they don't cover going over goal in Hardcore.
+//   kept after an ordinary reset.
 // - During Bee Jim Hardcore Mode, going over your goal also sends it back to 0.
 //   Logged steps count: the goal is checked against calories eaten minus steps.
+//   A Bee Jim failure is final: freezes can't cover any day in Hardcore (going
+//   over goal or missing a day), and failing wipes out every freeze you have.
 // - Prizes are earned each time your streak reaches their tier. A reset
 //   doesn't take them away, and climbing back up earns them again.
 //
@@ -61,11 +63,16 @@ export function playStreak(logs, { goal, prizes, periods, today }) {
   const frozen = [];
 
   // Days `from`..`to` had nothing logged: use a freeze for each if there are
-  // enough, otherwise the streak resets.
+  // enough, otherwise the streak resets. Missing a Hardcore day is a Bee Jim
+  // failure, which freezes can't cover and which wipes them all out.
   const miss = (from, to) => {
     const days = [];
     for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
-    if (freezes >= days.length) {
+    if (days.some((d) => hardcorePeriodOn(d, periods))) {
+      run = [];
+      freezes = 0;
+      reset = { date: days.find((d) => hardcorePeriodOn(d, periods)), missed: true };
+    } else if (freezes >= days.length) {
       freezes -= days.length;
       frozen.push(...days);
     } else {
@@ -82,6 +89,7 @@ export function playStreak(logs, { goal, prizes, periods, today }) {
     const limit = goalOn(goal, log.date);
     if (hardcore && netCalories(log) > limit) {
       run = [];
+      freezes = 0; // Bee Jim failure: no freezes survive it
       reset = { date: log.date, calories: netCalories(log), goal: limit };
       continue;
     }
