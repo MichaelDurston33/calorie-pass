@@ -11,6 +11,10 @@
 // the same amount again (100, then 200, ...).
 export const TIMELINE_LENGTH = 100;
 
+// A streak freeze is earned every this many days of a streak. Each one covers
+// one missed day automatically, so the streak carries on (see rules.js).
+export const FREEZE_EVERY = 15;
+
 // Calories walking burns per step, deducted from what you ate when you log steps.
 // Conservative: walking costs about 0.5 kcal per kg per km on top of resting
 // (lower than the ~0.8 often quoted for brisk walking). At 71 kg that's ~35 kcal/km,

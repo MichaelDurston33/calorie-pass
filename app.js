@@ -1,5 +1,5 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
-import { PASSES, TIMELINE_LENGTH } from "./passes.js";
+import { FREEZE_EVERY, PASSES, TIMELINE_LENGTH } from "./passes.js";
 import { addDays, goalOn, hardcorePeriodOn, netCalories, playStreak, stepKcal } from "./rules.js";
 
 const CODE_KEY = "calorie-pass-code";
@@ -160,7 +160,7 @@ function displayName(player) {
 
 function renderPass(player, day) {
   const pass = passFor(player);
-  const { run, reset, earned } = playStreak(player.logs, {
+  const { run, reset, earned, freezes, frozen } = playStreak(player.logs, {
     goal: pass.goal,
     prizes: pass.prizes,
     periods: hardcore.periods,
@@ -198,7 +198,10 @@ function renderPass(player, day) {
             ${showGoal ? `<span class="goal">Goal ${fmtKcal(goalToday)} kcal</span>` : ""}
           </div>
         </div>
-        <div class="tier-big"><span>Streak</span><strong>${streak}</strong></div>
+        <div class="tier-big">
+          <span>Streak</span><strong>${streak}</strong>
+          ${renderFreezes(streak, freezes, frozen)}
+        </div>
       </header>
       <div class="timeline-wrap">
         <button class="scroll-btn" type="button" data-dir="-1" aria-label="Scroll back">‹</button>
@@ -207,6 +210,19 @@ function renderPass(player, day) {
       </div>
       ${renderFooter(streak, pass.prizes, upcoming, earned)}
     </section>`;
+}
+
+// "❄️ 2" under the streak, with when the next one comes and the last day one covered.
+function renderFreezes(streak, freezes, frozen) {
+  const toNext = FREEZE_EVERY - (streak % FREEZE_EVERY);
+  const title = [
+    `${freezes} streak ${freezes === 1 ? "freeze" : "freezes"}: each covers a missed day automatically.`,
+    `Next one in ${toNext} ${toNext === 1 ? "day" : "days"}.`,
+    frozen.length && `Last used for ${fmtDay(frozen[frozen.length - 1])}.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return `<span class="freezes" title="${escapeHtml(title)}">❄️ ${freezes}</span>`;
 }
 
 // `log` is the day that earned this tier, if it's been earned.

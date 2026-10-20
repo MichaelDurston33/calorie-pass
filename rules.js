@@ -2,6 +2,9 @@
 //
 // - Log something every day to keep your streak going.
 // - Miss a day, in either mode, and your streak goes back to 0.
+//   Unless you have a streak freeze: one is earned every FREEZE_EVERY days of a
+//   streak, and each covers one missed day (used automatically). Freezes are
+//   kept after a reset, but they don't cover going over goal in Hardcore.
 // - During Bee Jim Hardcore Mode, going over your goal also sends it back to 0.
 //   Logged steps count: the goal is checked against calories eaten minus steps.
 // - Prizes are earned each time your streak reaches their tier. A reset
@@ -9,7 +12,7 @@
 //
 // Dates are "YYYY-MM-DD" strings, which compare correctly as plain strings.
 
-import { KCAL_PER_STEP } from "./passes.js";
+import { FREEZE_EVERY, KCAL_PER_STEP } from "./passes.js";
 
 // Calories burned walking, rounded down.
 export function stepKcal(steps) {
@@ -47,17 +50,32 @@ export function hardcorePeriodOn(date, periods) {
 //            { date, calories (net of steps), goal } for going over goal in Hardcore,
 //            { date, missed: true } for a day with nothing logged
 //   earned - how many of each prize have been earned, in the same order as `prizes`
+//   freezes - streak freezes left
+//   frozen  - the missed days that freezes covered
 export function playStreak(logs, { goal, prizes, periods, today }) {
   let run = [];
   let reset = null;
   let last = null;
   const earned = prizes.map(() => 0);
+  let freezes = 0;
+  const frozen = [];
+
+  // Days `from`..`to` had nothing logged: use a freeze for each if there are
+  // enough, otherwise the streak resets.
+  const miss = (from, to) => {
+    const days = [];
+    for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
+    if (freezes >= days.length) {
+      freezes -= days.length;
+      frozen.push(...days);
+    } else {
+      run = [];
+      reset = { date: from, missed: true };
+    }
+  };
 
   for (const log of logs) {
-    if (last && log.date > addDays(last, 1)) {
-      run = [];
-      reset = { date: addDays(last, 1), missed: true };
-    }
+    if (last && log.date > addDays(last, 1)) miss(addDays(last, 1), addDays(log.date, -1));
     last = log.date;
 
     const hardcore = Boolean(hardcorePeriodOn(log.date, periods));
@@ -72,13 +90,11 @@ export function playStreak(logs, { goal, prizes, periods, today }) {
     prizes.forEach((p, i) => {
       if (run.length % p.every === 0) earned[i]++;
     });
+    if (run.length % FREEZE_EVERY === 0) freezes++;
   }
 
   // Nothing logged yesterday (or since) breaks the streak too. Today isn't over yet.
-  if (last && last < addDays(today, -1)) {
-    run = [];
-    reset = { date: addDays(last, 1), missed: true };
-  }
+  if (last && last < addDays(today, -1)) miss(addDays(last, 1), addDays(today, -1));
 
-  return { run, reset, earned };
+  return { run, reset, earned, freezes, frozen };
 }

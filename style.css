@@ -410,3 +410,13 @@ body.hardcore .hc-frame {
 @media (prefers-reduced-motion: reduce) {
   .hc-edge span { animation: none; }
 }
+
+/* Streak freezes, under the streak number. */
+.tier-big .freezes {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
