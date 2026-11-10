@@ -39,6 +39,16 @@ create table if not exists hardcore_periods (
   end_date date not null
 );
 
+-- Reading sessions finished on the e-reader (its 25-minute timer). Some
+-- players need one each day for the day to count (see passes.js).
+create table if not exists reading_sessions (
+  id bigserial primary key,
+  player_id int not null references players(id) on delete cascade,
+  session_date date not null,
+  minutes int not null check (minutes between 1 and 600),
+  created_at timestamptz not null default now()
+);
+
 -- ---------- Lock everything down ----------
 -- RLS on with no policies = the website can't touch these tables directly.
 -- All access goes through the functions below, which check the access code.
@@ -48,6 +58,7 @@ alter table calorie_logs enable row level security;
 alter table settings enable row level security;
 alter table hardcore_optins enable row level security;
 alter table hardcore_periods enable row level security;
+alter table reading_sessions enable row level security;
 
 -- ---------- Functions ----------
 
@@ -87,6 +98,17 @@ begin
                                    order by l.log_date), '[]'::json)
           from calorie_logs l
           where l.player_id = p.id
+        ),
+        -- One entry per day, with that day's longest session.
+        'reading', (
+          select coalesce(json_agg(json_build_object('date', r.session_date, 'minutes', r.minutes)
+                                   order by r.session_date), '[]'::json)
+          from (
+            select session_date, max(minutes) as minutes
+            from reading_sessions
+            where player_id = p.id
+            group by session_date
+          ) r
         )
       ) order by p.id), '[]'::json)
       from players p
@@ -136,6 +158,36 @@ begin
 end;
 $$;
 
+-- Called by the e-reader when its reading timer finishes. p_date is the
+-- e-reader's own local date. Returns how many minutes that day's longest
+-- session was, so the e-reader can show it was saved.
+create or replace function submit_reading(p_code text, p_player_id int, p_date date, p_minutes int default 25)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform check_code(p_code);
+
+  if p_date not between current_date - 1 and current_date + 1 then
+    raise exception 'Date out of range';
+  end if;
+  if not exists (select 1 from players where id = p_player_id) then
+    raise exception 'Unknown player';
+  end if;
+
+  insert into reading_sessions (player_id, session_date, minutes)
+  values (p_player_id, p_date, p_minutes);
+
+  return json_build_object(
+    'date', p_date,
+    'minutes', (select max(minutes) from reading_sessions
+                where player_id = p_player_id and session_date = p_date)
+  );
+end;
+$$;
+
 -- Opt in to (or back out of) Bee Jim Hardcore Mode. Once everyone is in, it
 -- starts straight away and lasts 7 days, today included. It can't be stopped early.
 create or replace function set_hardcore_optin(p_code text, p_player_id int, p_opt_in boolean, p_today date)
@@ -179,6 +231,7 @@ revoke execute on function check_code(text) from public, anon, authenticated;
 grant execute on function get_state(text) to anon;
 grant execute on function submit_log(text, int, int, date, int) to anon;
 grant execute on function set_hardcore_optin(text, int, boolean, date) to anon;
+grant execute on function submit_reading(text, int, date, int) to anon;
 
 -- ---------- Seed data ----------
 -- Names must match the keys in passes.js.

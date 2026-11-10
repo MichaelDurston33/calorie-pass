@@ -6,6 +6,9 @@
 // `goal`: during Bee Jim Hardcore Mode, logging more than this resets your streak.
 // To change it from a given day without affecting earlier days, list the changes:
 //   goal: [{ kcal: 1937 }, { from: "2026-10-03", kcal: 1800 }]
+// `reading`: from that day on, a day only counts once there's also a finished
+// reading session of at least that many minutes, sent by the e-reader. A day
+// without one counts as a missed day (see rules.js).
 
 // Tiers shown on the timeline. When someone reaches the end, it extends by
 // the same amount again (100, then 200, ...).
@@ -45,6 +48,7 @@ export const PASSES = {
   Michael: {
     emoji: "🧌",
     goal: [{ kcal: 1900 }, { from: "2026-10-20", kcal: 2100 }],
+    reading: { from: "2026-11-11", minutes: 25 },
     // Drampa blue and Drampa beige
     colors: {
       bg: "#f4efe1", // panel

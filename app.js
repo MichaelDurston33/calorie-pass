@@ -1,6 +1,6 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 import { FREEZE_EVERY, PASSES, TIMELINE_LENGTH } from "./passes.js";
-import { addDays, goalOn, hardcorePeriodOn, netCalories, playStreak, stepKcal } from "./rules.js";
+import { addDays, goalOn, hardcorePeriodOn, needsReading, netCalories, playStreak, readOn, stepKcal } from "./rules.js";
 
 const CODE_KEY = "calorie-pass-code";
 const PLAYER_KEY = "calorie-pass-player";
@@ -38,7 +38,7 @@ async function rpc(fn, args) {
 
 let code = storageGet(CODE_KEY);
 let myId = storageGet(PLAYER_KEY);
-let players = []; // [{ id, name, logs: [{ date, calories, steps }] }], logs oldest first
+let players = []; // [{ id, name, logs: [{ date, calories, steps }], reading: [{ date, minutes }] }], oldest first
 let hardcore = { periods: [], optins: [] }; // periods: [{ start, end }], optins: [player id]
 
 // Add ?hardcore to the address to preview Hardcore Mode on this device only.
@@ -106,14 +106,18 @@ function showMain(me) {
       (period.preview ? " (Preview on this device only: nothing is saved.)" : "");
   }
 
-  const goal = goalOn(passFor(me).goal, day);
+  const { goal, reading } = passFor(me);
+  const goalToday = goalOn(goal, day);
   const todays = me.logs.find((l) => l.date === day);
   $("me").textContent = displayName(me);
   $("status").textContent = [
     todays
       ? `Logged today: ${describeDay(todays)}. Submit again to correct it.`
       : "Not logged today yet. Log before midnight to keep your streak.",
-    period && goal ? `Hardcore goal: ${fmtKcal(goal)} kcal or less.` : "",
+    needsReading(reading, day) && !readOn(reading, me.reading ?? [], day)
+      ? `Today also needs a finished ${reading.minutes}-minute reading session on the e-reader.`
+      : "",
+    period && goalToday ? `Hardcore goal: ${fmtKcal(goalToday)} kcal or less.` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -165,6 +169,8 @@ function renderPass(player, day) {
     prizes: pass.prizes,
     periods: hardcore.periods,
     today: day,
+    reading: pass.reading,
+    sessions: player.reading ?? [],
   });
   const streak = run.length;
   const upcoming = pass.prizes.map((p) => ({ ...p, tier: nextPrizeTier(streak, p.every) }));
@@ -176,12 +182,14 @@ function renderPass(player, day) {
     Math.ceil((streak + 1) / TIMELINE_LENGTH) * TIMELINE_LENGTH,
     ...upcoming.map((p) => p.tier)
   );
-  const tiers = reset ? [renderReset(reset)] : [];
-  for (let t = 1; t <= end; t++) tiers.push(renderTier(t, run[t - 1], streak, pass.prizes));
+  const tiers = reset ? [renderReset(reset, player)] : [];
+  for (let t = 1; t <= end; t++) tiers.push(renderTier(t, run[t - 1], streak, pass.prizes, pass.reading));
 
   const loggedToday = player.logs.some((l) => l.date === day);
   const goalToday = goalOn(pass.goal, day);
   const showGoal = goalToday && hardcorePeriodOn(day, hardcore.periods);
+  const showReading = needsReading(pass.reading, day);
+  const readToday = showReading && readOn(pass.reading, player.reading ?? [], day);
 
   return `
     <section class="pass" style="${escapeHtml(themeStyle(pass.colors))}">
@@ -194,6 +202,13 @@ function renderPass(player, day) {
               loggedToday
                 ? `<span class="today is-done">✓ Logged today</span>`
                 : `<span class="today">Not logged today</span>`
+            }
+            ${
+              showReading
+                ? readToday
+                  ? `<span class="today is-done">📖 Read today</span>`
+                  : `<span class="today">📖 Not read today</span>`
+                : ""
             }
             ${showGoal ? `<span class="goal">Goal ${fmtKcal(goalToday)} kcal</span>` : ""}
           </div>
@@ -226,7 +241,7 @@ function renderFreezes(streak, freezes, frozen) {
 }
 
 // `log` is the day that earned this tier, if it's been earned.
-function renderTier(t, log, streak, prizes) {
+function renderTier(t, log, streak, prizes, reading) {
   const rewards = prizes.filter((p) => t % p.every === 0);
   const earned = t <= streak;
   const cls = ["tier", earned && "done", t === streak + 1 && "next", rewards.length && "has-prize", log?.hardcore && "hc"]
@@ -234,7 +249,7 @@ function renderTier(t, log, streak, prizes) {
     .join(" ");
   const title = [
     `Tier ${t}`,
-    log && `${fmtDay(log.date)}: ${describeDay(log)}${log.hardcore ? " (Hardcore)" : ""}`,
+    log && `${fmtDay(log.date)}: ${describeDay(log)}${needsReading(reading, log.date) ? " + reading" : ""}${log.hardcore ? " (Hardcore)" : ""}`,
     rewards.length && rewards.map((r) => r.name).join(" + "),
   ]
     .filter(Boolean)
@@ -261,15 +276,19 @@ function renderTier(t, log, streak, prizes) {
 }
 
 // Tier 0: what ended the last streak, so it stays visible to both of you.
-function renderReset(reset) {
-  const title = reset.missed
+function renderReset(reset, player) {
+  // A missed day that did have calories logged was missing its reading session.
+  const noReading = reset.missed && player.logs.some((l) => l.date === reset.date);
+  const title = noReading
+    ? `Streak reset: no reading session on ${fmtDay(reset.date)}`
+    : reset.missed
     ? `Streak reset: nothing logged on ${fmtDay(reset.date)}`
     : `Streak reset: ${fmtKcal(reset.calories)} kcal net on ${fmtDay(reset.date)}, over the ${fmtKcal(reset.goal)} kcal Hardcore goal`;
   return `
     <li class="tier reset" title="${escapeHtml(title)}">
       <span class="tier-num">0</span>
       <span class="rail"><span class="node">💥</span></span>
-      ${renderEntry(reset.missed ? "Missed" : fmtKcal(reset.calories), reset.date)}
+      ${renderEntry(noReading ? "No reading" : reset.missed ? "Missed" : fmtKcal(reset.calories), reset.date)}
     </li>`;
 }
 

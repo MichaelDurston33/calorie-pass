@@ -9,6 +9,9 @@
 //   Logged steps count: the goal is checked against calories eaten minus steps.
 //   A Bee Jim failure is final: freezes can't cover any day in Hardcore (going
 //   over goal or missing a day), and failing wipes out every freeze you have.
+// - Some people also need a finished reading session on the e-reader each day
+//   (`reading` in passes.js). Without one, the day counts as missed, even if
+//   calories were logged.
 // - Prizes are earned each time your streak reaches their tier. A reset
 //   doesn't take them away, and climbing back up earns them again.
 //
@@ -41,6 +44,20 @@ export function goalOn(goal, date) {
   return kcal;
 }
 
+// Whether a day needs a reading session, and if so whether it had one.
+// `reading` is the pass's setting ({ from, minutes }), `sessions` the player's
+// reading days: [{ date, minutes }].
+export function needsReading(reading, date) {
+  return Boolean(reading && reading.from <= date);
+}
+export function readOn(reading, sessions, date) {
+  const s = sessions.find((r) => r.date === date);
+  return Boolean(s && s.minutes >= reading.minutes);
+}
+export function dayCounts(reading, sessions, date) {
+  return !needsReading(reading, date) || readOn(reading, sessions, date);
+}
+
 // The Hardcore period covering `date`, if there is one.
 export function hardcorePeriodOn(date, periods) {
   return periods.find((p) => p.start <= date && date <= p.end);
@@ -50,11 +67,15 @@ export function hardcorePeriodOn(date, periods) {
 //   run    - the logs making up the current streak, so tier 1 is run[0]
 //   reset  - what ended the previous streak, if anything:
 //            { date, calories (net of steps), goal } for going over goal in Hardcore,
-//            { date, missed: true } for a day with nothing logged
+//            { date, missed: true } for a day with nothing logged (or, when
+//            reading is needed, no reading session)
 //   earned - how many of each prize have been earned, in the same order as `prizes`
 //   freezes - streak freezes left
 //   frozen  - the missed days that freezes covered
-export function playStreak(logs, { goal, prizes, periods, today }) {
+export function playStreak(logs, { goal, prizes, periods, today, reading, sessions = [] }) {
+  // Days missing a needed reading session don't count, so they're gaps like unlogged days.
+  logs = logs.filter((log) => dayCounts(reading, sessions, log.date));
+
   let run = [];
   let reset = null;
   let last = null;

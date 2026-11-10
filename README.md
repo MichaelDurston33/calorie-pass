@@ -10,6 +10,8 @@ It's a static site (GitHub Pages) that talks to Supabase. There's no build step 
 - Miss a day and your streak goes back to 0.
 - **Bee Jim Hardcore Mode:** once you've both opted in, it's on for 7 days, starting that day.
   Logging more than your goal during it also sends your streak back to 0.
+- **Reading (Michael, from 11 Nov 2026):** a day only counts once the e-reader has also sent a finished
+  25-minute reading session. Calories without a session count as a missed day.
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
 - Everyone's calories are shown under each day of their pass, and a 💥 marks what ended the last streak.
 
@@ -34,6 +36,26 @@ It's a static site (GitHub Pages) that talks to Supabase. There's no build step 
 - The logo: replace [static/logo.png](static/logo.png), then remake the tab and app icons with
   `powershell -ExecutionPolicy Bypass -File tools\make-icons.ps1`
 
+## The e-reader
+
+When its 25-minute timer finishes, the e-reader sends one request:
+
+```
+POST https://trgjhvsfeoidurgmrhai.supabase.co/rest/v1/rpc/submit_reading
+Content-Type: application/json
+apikey: <the publishable key from config.js>
+
+{ "p_code": "<the shared code>", "p_player_id": 1, "p_date": "2026-11-11", "p_minutes": 25 }
+```
+
+- `p_date` is the e-reader's own local date (`YYYY-MM-DD`). Only today or yesterday is accepted.
+- Michael is player 1. `p_minutes` is optional and defaults to 25.
+- Success is HTTP 200 with `{ "date": ..., "minutes": ... }` (that day's longest session). Anything else
+  failed and is worth retrying; a wrong code gives `{ "message": "Invalid code" }`.
+- Sending twice is harmless: it just records another session.
+
+To change who needs reading, from when, or for how long: `reading` in [passes.js](passes.js).
+
 ## Installing it as an app
 
 - **Android, or Chrome/Edge on a computer:** open the site, then use the browser menu's "Install app"
@@ -44,8 +66,8 @@ It's a static site (GitHub Pages) that talks to Supabase. There's no build step 
 ## How it's secured
 
 The tables have Row Level Security on with no policies, so the website can't read or write them directly.
-It can only call three database functions (`get_state`, `submit_log`, `set_hardcore_optin`), and all of
-them check the shared code first.
+It can only call four database functions (`get_state`, `submit_log`, `set_hardcore_optin`,
+`submit_reading`), and all of them check the shared code first.
 The anon key in `config.js` is designed to be public. **Never commit the service_role / secret key.**
 
 ## Running locally
