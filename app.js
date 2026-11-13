@@ -450,6 +450,7 @@ $("log-form").addEventListener("submit", async (e) => {
     );
     $("calories").value = "";
     $("steps").value = "";
+    $("log-details").open = false;
     show();
   } catch (err) {
     $("status").textContent = `Couldn't save: ${err.message}`;

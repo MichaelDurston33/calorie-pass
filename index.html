@@ -53,14 +53,21 @@
           <button id="switch-player" class="link" type="button">Not you?</button>
         </p>
 
-        <label for="calories">Today's calories</label>
-        <input id="calories" type="number" inputmode="numeric" min="0" max="20000" required>
-
-        <label for="steps">Steps today <span class="optional">(optional)</span></label>
-        <input id="steps" type="number" inputmode="numeric" min="0" max="200000">
-
-        <button type="submit">Log it</button>
         <p id="status" class="muted"></p>
+
+        <!-- Collapsed on open; tap the summary to show the fields. -->
+        <details id="log-details" class="log-details">
+          <summary>Log calories and steps</summary>
+          <div class="log-fields">
+            <label for="calories">Today's calories</label>
+            <input id="calories" type="number" inputmode="numeric" min="0" max="20000" required>
+
+            <label for="steps">Steps today <span class="optional">(optional)</span></label>
+            <input id="steps" type="number" inputmode="numeric" min="0" max="200000">
+
+            <button type="submit">Log it</button>
+          </div>
+        </details>
       </form>
 
       <div id="passes"></div>

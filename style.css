@@ -114,6 +114,20 @@ button:disabled { opacity: 0.6; }
   margin: 0 0 4px;
 }
 .me-line .link { font-size: 0.9rem; }
+#status { margin: 0; }
+
+/* Calorie/step entry, collapsed until the summary is tapped. */
+.log-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 4px 0;
+}
+.log-fields {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
 .error { color: var(--error); margin: 0; min-height: 1.5em; }
 
 /* ---------- Battle pass ----------
