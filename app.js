@@ -1,11 +1,10 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 import { FREEZE_EVERY, PASSES, TIMELINE_LENGTH } from "./passes.js";
-import { addDays, goalOn, hardcorePeriodOn, needsReading, netCalories, playStreak, readOn, stepKcal } from "./rules.js";
+import { addDays, goalOn, hardcorePeriodOn, needsReading, netCalories, playStreak, readOn, stepKcal, tokensLeft } from "./rules.js";
+import { $, escapeHtml, fmtDay, rpc, today } from "./util.js";
+import { initJournal, openEditor, renderJournal } from "./journal.js";
 
 const CODE_KEY = "calorie-pass-code";
 const PLAYER_KEY = "calorie-pass-player";
-
-const $ = (id) => document.getElementById(id);
 
 function storageGet(key) {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -17,28 +16,14 @@ function storageRemove(key) {
   try { localStorage.removeItem(key); } catch {}
 }
 
-// Browser-local date as YYYY-MM-DD.
-function today() {
-  return new Date().toLocaleDateString("en-CA");
-}
-
-async function rpc(fn, args) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
-    body: JSON.stringify(args),
-  });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(body?.message || `Request failed (${res.status})`);
-  return body;
-}
-
 // ---------- State ----------
 // The code and who's using this device are remembered, so each is only asked for once.
 
 let code = storageGet(CODE_KEY);
 let myId = storageGet(PLAYER_KEY);
-let players = []; // [{ id, name, logs: [{ date, calories, steps }], reading: [{ date, minutes }] }], oldest first
+// [{ id, name, logs: [{ date, calories, steps }], reading: [{ date, minutes }],
+//    spends: [{ id, prize, date }], journal: [{ id, name, date, style, spendId }] }], oldest first
+let players = [];
 let hardcore = { periods: [], optins: [] }; // periods: [{ start, end }], optins: [player id]
 
 // Add ?hardcore to the address to preview Hardcore Mode on this device only.
@@ -90,10 +75,25 @@ function showPicker() {
     .join("");
 }
 
+// "pass" or "journal", from the address (#journal), so the back button works.
+function currentView() {
+  return location.hash === "#journal" && players.some((p) => passFor(p).journal) ? "journal" : "pass";
+}
+
 function showMain(me) {
   showScreen("main");
   const day = today();
   const period = hardcorePeriodOn(day, hardcore.periods);
+  const view = currentView();
+
+  $("tabs").hidden = !players.some((p) => passFor(p).journal);
+  for (const tab of document.querySelectorAll("#tabs a")) {
+    tab.classList.toggle("active", tab.dataset.view === view);
+    if (tab.dataset.view === view) tab.setAttribute("aria-current", "page");
+    else tab.removeAttribute("aria-current");
+  }
+  $("pass-view").hidden = view !== "pass";
+  $("journal-view").hidden = view !== "journal";
 
   document.body.classList.toggle("hardcore", Boolean(period));
   $("hc-banner").hidden = !period;
@@ -122,8 +122,11 @@ function showMain(me) {
     .filter(Boolean)
     .join(" ");
 
-  renderPasses(day);
-  renderHardcoreCard(me, day, period);
+  if (view === "journal") renderJournal();
+  else {
+    renderPasses(day);
+    renderHardcoreCard(me, day, period);
+  }
 }
 
 function renderPasses(day) {
@@ -156,15 +159,20 @@ function inPassOrder(players) {
   return [...players].sort((a, b) => passRank(a) - passRank(b));
 }
 
+function isMe(player) {
+  return String(player.id) === myId;
+}
+
 // "🐝 Abbie"
 function displayName(player) {
   const emoji = passFor(player).emoji;
   return emoji ? `${emoji} ${player.name}` : player.name;
 }
 
-function renderPass(player, day) {
+// Replays someone's logs: their streak, prizes earned and freezes (see rules.js).
+function streakFor(player, day = today()) {
   const pass = passFor(player);
-  const { run, reset, earned, freezes, frozen } = playStreak(player.logs, {
+  return playStreak(player.logs, {
     goal: pass.goal,
     prizes: pass.prizes,
     periods: hardcore.periods,
@@ -172,6 +180,25 @@ function renderPass(player, day) {
     reading: pass.reading,
     sessions: player.reading ?? [],
   });
+}
+
+// Each prize's tokens: how many were earned, which were spent, and how many are left.
+function tokensFor(player, day = today()) {
+  const { prizes } = passFor(player);
+  const { earned } = streakFor(player, day);
+  const spends = player.spends ?? [];
+  const left = tokensLeft(prizes, earned, spends);
+  return prizes.map((prize, i) => ({
+    prize,
+    earned: earned[i],
+    left: left[i],
+    spends: spends.filter((s) => s.prize === prize.name),
+  }));
+}
+
+function renderPass(player, day) {
+  const pass = passFor(player);
+  const { run, reset, freezes, frozen } = streakFor(player, day);
   const streak = run.length;
   const upcoming = pass.prizes.map((p) => ({ ...p, tier: nextPrizeTier(streak, p.every) }));
 
@@ -223,7 +250,7 @@ function renderPass(player, day) {
         <div class="timeline"><ol class="tiers">${tiers.join("")}</ol></div>
         <button class="scroll-btn" type="button" data-dir="1" aria-label="Scroll forward">›</button>
       </div>
-      ${renderFooter(streak, pass.prizes, upcoming, earned)}
+      ${renderFooter(streak, pass.prizes, upcoming, tokensFor(player, day), isMe(player))}
     </section>`;
 }
 
@@ -310,7 +337,9 @@ function renderEntry(text, date, steps) {
     </span>`;
 }
 
-function renderFooter(streak, prizes, upcoming, earned) {
+// What's next, and each prize's tokens to spend. On your own pass the token
+// counts are buttons that open the token sheet.
+function renderFooter(streak, prizes, upcoming, tokens, mine) {
   if (!prizes.length) return "";
 
   const soonest = Math.min(...upcoming.map((p) => p.tier));
@@ -319,14 +348,110 @@ function renderFooter(streak, prizes, upcoming, earned) {
     .filter((p) => p.tier === soonest)
     .map((p) => `${p.icon} ${p.name}`)
     .join(" + ");
-  const earnedText = prizes.map((p, i) => `${p.icon} ×${earned[i]}`).join(" · ");
+
+  const chips = tokens
+    .map(({ prize, left, earned }) => {
+      const label = `${prize.name}: ${left} ${left === 1 ? "token" : "tokens"} to spend (${earned} earned)`;
+      const inner = `<span aria-hidden="true">${escapeHtml(prize.icon)}</span><strong>${left}</strong>`;
+      const cls = `token${left ? " has-left" : ""}`;
+      return mine
+        ? `<button class="${cls}" type="button" data-token="${escapeHtml(prize.name)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${inner}</button>`
+        : `<span class="${cls}" title="${escapeHtml(label)}">${inner}</span>`;
+    })
+    .join("");
 
   return `
-    <p class="pass-foot">
+    <div class="pass-foot">
       <span>Next: <strong>${escapeHtml(nextNames)}</strong> in ${toGo} ${toGo === 1 ? "day" : "days"}</span>
-      <span>Earned: ${escapeHtml(earnedText)}</span>
-    </p>`;
+      <span class="tokens">Tokens to spend ${chips}</span>
+    </div>`;
 }
+
+// ---------- Tokens ----------
+// Each prize earned is a token. Tapping your token count opens a sheet to use
+// one (recorded with the date) or undo one used by mistake.
+
+let tokenPrize = null; // the prize whose sheet is open
+
+function openTokenSheet(prizeName) {
+  tokenPrize = prizeName;
+  const me = players.find((p) => isMe(p));
+  $("token-dialog").setAttribute("style", themeStyle(passFor(me).colors));
+  renderTokenSheet();
+  $("token-dialog").showModal();
+}
+
+function renderTokenSheet(message = "") {
+  const me = players.find((p) => isMe(p));
+  const token = me && tokensFor(me).find((t) => t.prize.name === tokenPrize);
+  if (!token) return $("token-dialog").close();
+  const { prize, left, earned, spends } = token;
+  const forJournal = passFor(me).journal?.prize === prize.name;
+  const named = new Map((me.journal ?? []).filter((e) => e.spendId).map((e) => [e.spendId, e.name]));
+  const thing = prize.name.toLowerCase();
+
+  const history = [...spends]
+    .reverse()
+    .map(
+      (s) => `
+        <li>
+          <span>${escapeHtml(fmtDay(s.date, { year: "numeric" }))}${named.has(s.id) ? ` · <strong>${escapeHtml(named.get(s.id))}</strong>` : ""}</span>
+          <button class="link" type="button" data-unspend="${s.id}">Undo</button>
+        </li>`
+    )
+    .join("");
+
+  let actions;
+  if (!left) actions = `<p class="muted">No tokens to spend right now. Keep your streak going!</p>`;
+  else if (forJournal)
+    actions = `
+      <button class="token-use" type="button" data-use="journal">＋ Use one for a new ${escapeHtml(thing)}</button>
+      <button class="link" type="button" data-use="plain">Use one without a journal entry</button>`;
+  else actions = `<button class="token-use" type="button" data-use="plain">Use a ${escapeHtml(thing)} token</button>`;
+
+  $("token-dialog").innerHTML = `
+    <div class="sheet-bar">
+      <h2>${escapeHtml(`${prize.icon} ${prize.name} tokens`)}</h2>
+      <button class="sheet-close" type="button" data-close aria-label="Close">✕</button>
+    </div>
+    <p class="token-count"><strong>${left}</strong> to spend <span class="muted">· ${earned} earned · ${spends.length} used</span></p>
+    ${message ? `<p class="token-msg">${escapeHtml(message)}</p>` : ""}
+    <div class="token-actions">${actions}</div>
+    <h3>Used</h3>
+    ${history ? `<ul class="token-history">${history}</ul>` : `<p class="muted">None yet.</p>`}
+    <p class="error" id="token-error"></p>`;
+}
+
+$("token-dialog").addEventListener("click", async (e) => {
+  const dialog = $("token-dialog");
+  if (e.target === dialog || e.target.closest("[data-close]")) return dialog.close(); // backdrop or ✕
+  const use = e.target.closest("[data-use]");
+  const unspend = e.target.closest("[data-unspend]");
+
+  if (use?.dataset.use === "journal") {
+    dialog.close();
+    location.hash = "journal";
+    openEditor(Number(myId), { token: "new" });
+    return;
+  }
+
+  try {
+    if (use) {
+      use.disabled = true;
+      setState(await rpc("spend_token", { p_code: code, p_player_id: Number(myId), p_prize: tokenPrize, p_date: today() }));
+      show();
+      renderTokenSheet("Token used. Enjoy! 🎉");
+    } else if (unspend) {
+      if (!confirm("Undo this one? It goes back to your tokens to spend.")) return;
+      setState(await rpc("unspend_token", { p_code: code, p_player_id: Number(myId), p_spend_id: Number(unspend.dataset.unspend) }));
+      show();
+      renderTokenSheet("Undone: it's back with your tokens to spend.");
+    }
+  } catch (err) {
+    $("token-error").textContent = `Couldn't save: ${err.message}`;
+    if (use) use.disabled = false;
+  }
+});
 
 // The opt-in card. Hidden while Hardcore Mode is on (the banner takes over).
 function renderHardcoreCard(me, day, period) {
@@ -381,19 +506,8 @@ function themeStyle(colors = {}) {
 
 const fmtKcal = (n) => n.toLocaleString();
 
-// "30 Sep", in the browser's own date style.
-function fmtDay(date, options = {}) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short", ...options });
-}
-
 function daysBetween(from, to) {
   return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
-  );
 }
 
 // ---------- Actions ----------
@@ -480,6 +594,8 @@ $("hardcore").addEventListener("click", async (e) => {
 });
 
 $("passes").addEventListener("click", (e) => {
+  const token = e.target.closest("[data-token]");
+  if (token) return openTokenSheet(token.dataset.token);
   const button = e.target.closest(".scroll-btn");
   if (!button) return;
   const timeline = button.parentElement.querySelector(".timeline");
@@ -503,6 +619,25 @@ for (const strip of document.querySelectorAll(".hc-top span, .hc-bottom span")) 
 for (const strip of document.querySelectorAll(".hc-left span, .hc-right span")) {
   strip.textContent = "🐝\n🧟\n".repeat(60);
 }
+
+initJournal({
+  code: () => code,
+  myId: () => myId,
+  players: () => players,
+  passFor,
+  tokensFor,
+  apply(state) {
+    setState(state);
+    show();
+  },
+});
+
+// Switching between the pass and the journal.
+window.addEventListener("hashchange", () => {
+  if (!players.length) return;
+  window.scrollTo(0, 0);
+  show();
+});
 
 if (code) load(code);
 else showLogin();

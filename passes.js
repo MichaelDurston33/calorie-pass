@@ -9,6 +9,10 @@
 // `reading`: from that day on, a day only counts once there's also a finished
 // reading session of at least that many minutes, sent by the e-reader. A day
 // without one counts as a missed day (see rules.js).
+// Each prize earned is a token to spend. Tap your token count on your pass to
+// use one; it's recorded with the date.
+// `journal`: gives that person a photo journal (see journal.js). Entries can be
+// bought with a token of the `prize` named, and the journal is called `title`.
 
 // Tiers shown on the timeline. When someone reaches the end, it extends by
 // the same amount again (100, then 200, ...).
@@ -43,6 +47,7 @@ export const PASSES = {
       { every: 14, name: "Plushie", icon: "🧸" },
       { every: 20, name: "Merch", icon: "👕" },
     ],
+    journal: { prize: "Plushie", title: "Plushie Journal" },
   },
 
   Michael: {

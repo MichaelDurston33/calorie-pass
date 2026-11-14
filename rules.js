@@ -58,6 +58,12 @@ export function dayCounts(reading, sessions, date) {
   return !needsReading(reading, date) || readOn(reading, sessions, date);
 }
 
+// Tokens left to spend for each prize, in the same order as `prizes`: earned on
+// the pass (from playStreak) minus spent. `spends` is [{ prize, date }].
+export function tokensLeft(prizes, earned, spends = []) {
+  return prizes.map((p, i) => Math.max(0, earned[i] - spends.filter((s) => s.prize === p.name).length));
+}
+
 // The Hardcore period covering `date`, if there is one.
 export function hardcorePeriodOn(date, periods) {
   return periods.find((p) => p.start <= date && date <= p.end);

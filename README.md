@@ -13,6 +13,10 @@ It's a static site (GitHub Pages) that talks to Supabase. There's no build step 
 - **Reading (Michael, from 11 Nov 2026):** a day only counts once the e-reader has also sent a finished
   25-minute reading session. Calories without a session count as a missed day.
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
+- **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
+  to use one (it's saved with the date) or undo one used by mistake.
+- **Plushie Journal (Abbie):** the Journal tab. Each plushie gets a polaroid with its photo and name,
+  in the frame, background, tape and font Abbie picks. It can be bought with a Plushie token.
 - Everyone's calories are shown under each day of their pass, and a 💥 marks what ended the last streak.
 
 ## Setup
@@ -30,7 +34,8 @@ It's a static site (GitHub Pages) that talks to Supabase. There's no build step 
 
 ## Customising
 
-- Each person's colours, prizes and Hardcore goal: [passes.js](passes.js)
+- Each person's colours, prizes, Hardcore goal and journal: [passes.js](passes.js)
+- The journal's frames, backgrounds, tapes and fonts: [journal-palette.js](journal-palette.js)
 - The streak rules: [rules.js](rules.js)
 - Look and feel: [style.css](style.css)
 - The logo: replace [static/logo.png](static/logo.png), then remake the tab and app icons with
@@ -66,8 +71,10 @@ To change who needs reading, from when, or for how long: `reading` in [passes.js
 ## How it's secured
 
 The tables have Row Level Security on with no policies, so the website can't read or write them directly.
-It can only call four database functions (`get_state`, `submit_log`, `set_hardcore_optin`,
-`submit_reading`), and all of them check the shared code first.
+It can only call the database functions in [supabase/schema.sql](supabase/schema.sql) (`get_state`,
+`submit_log`, `set_hardcore_optin`, `submit_reading`, and the token and journal ones), and all of them
+check the shared code first. Journal photos are shrunk in the browser and kept in the database the
+same way, so there's no separate storage bucket to secure.
 The anon key in `config.js` is designed to be public. **Never commit the service_role / secret key.**
 
 ## Running locally

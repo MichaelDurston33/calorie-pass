@@ -49,6 +49,32 @@ create table if not exists reading_sessions (
   created_at timestamptz not null default now()
 );
 
+-- Prize tokens that have been used, e.g. Abbie's Plushie token. Tokens are
+-- earned on the pass (the page works them out, see passes.js); this records
+-- each one spent, so tokens left = earned - spent.
+create table if not exists token_spends (
+  id bigserial primary key,
+  player_id int not null references players(id) on delete cascade,
+  prize text not null check (length(prize) between 1 and 40), -- the prize's name in passes.js
+  spent_on date not null,
+  created_at timestamptz not null default now()
+);
+
+-- The Plushie Journal: one polaroid per plushie. The photo is a small JPEG
+-- (resized in the browser to 800x800, roughly 100 KB) kept as text so it goes
+-- through the same code-checked functions as everything else. `style` holds the
+-- ids of the frame, backdrop, tape and font chosen (see journal-palette.js).
+create table if not exists journal_entries (
+  id bigserial primary key,
+  player_id int not null references players(id) on delete cascade,
+  spend_id bigint references token_spends(id) on delete set null, -- the token it was bought with
+  name text not null check (length(name) between 1 and 40),
+  entry_date date not null,
+  photo text not null check (length(photo) <= 1500000 and photo ~ '^data:image/jpeg;base64,[A-Za-z0-9+/=]+$'),
+  style jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 -- ---------- Lock everything down ----------
 -- RLS on with no policies = the website can't touch these tables directly.
 -- All access goes through the functions below, which check the access code.
@@ -59,6 +85,8 @@ alter table settings enable row level security;
 alter table hardcore_optins enable row level security;
 alter table hardcore_periods enable row level security;
 alter table reading_sessions enable row level security;
+alter table token_spends enable row level security;
+alter table journal_entries enable row level security;
 
 -- ---------- Functions ----------
 
@@ -109,6 +137,21 @@ begin
             where player_id = p.id
             group by session_date
           ) r
+        ),
+        'spends', (
+          select coalesce(json_agg(json_build_object('id', s.id, 'prize', s.prize, 'date', s.spent_on)
+                                   order by s.spent_on, s.id), '[]'::json)
+          from token_spends s
+          where s.player_id = p.id
+        ),
+        -- Journal entries without their photos, which are fetched one at a
+        -- time by get_journal_photo so this stays small.
+        'journal', (
+          select coalesce(json_agg(json_build_object('id', j.id, 'name', j.name, 'date', j.entry_date,
+                                                     'style', j.style, 'spendId', j.spend_id)
+                                   order by j.entry_date, j.id), '[]'::json)
+          from journal_entries j
+          where j.player_id = p.id
         )
       ) order by p.id), '[]'::json)
       from players p
@@ -226,12 +269,125 @@ begin
 end;
 $$;
 
+-- Use one of a player's prize tokens (e.g. 'Plushie'). The page only offers
+-- this when there's a token left to spend.
+create or replace function spend_token(p_code text, p_player_id int, p_prize text, p_date date)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform check_code(p_code);
+
+  if p_date not between current_date - 1 and current_date + 1 then
+    raise exception 'Date out of range';
+  end if;
+
+  insert into token_spends (player_id, prize, spent_on) values (p_player_id, p_prize, p_date);
+
+  return get_state(p_code);
+end;
+$$;
+
+-- Undo a token spent by mistake. A journal entry bought with it stays, just
+-- no longer linked to a token.
+create or replace function unspend_token(p_code text, p_player_id int, p_spend_id bigint)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform check_code(p_code);
+  delete from token_spends where id = p_spend_id and player_id = p_player_id;
+  return get_state(p_code);
+end;
+$$;
+
+-- Add a journal entry (p_entry_id null) or change one. When changing, a null
+-- photo keeps the existing one. For a new entry, p_new_token spends a token
+-- of that prize for it, or p_spend_id links a token already spent.
+create or replace function save_journal_entry(
+  p_code text, p_player_id int, p_entry_id bigint, p_name text, p_date date,
+  p_photo text, p_style jsonb, p_spend_id bigint default null, p_new_token text default null
+)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_spend_id bigint := p_spend_id;
+begin
+  perform check_code(p_code);
+
+  if p_date > current_date + 1 then
+    raise exception 'Date out of range';
+  end if;
+
+  if p_entry_id is null then
+    if p_photo is null then
+      raise exception 'A photo is needed';
+    end if;
+    if p_new_token is not null then
+      insert into token_spends (player_id, prize, spent_on)
+      values (p_player_id, p_new_token, p_date)
+      returning id into v_spend_id;
+    end if;
+    insert into journal_entries (player_id, spend_id, name, entry_date, photo, style)
+    values (p_player_id, v_spend_id, trim(p_name), p_date, p_photo, coalesce(p_style, '{}'::jsonb));
+  else
+    update journal_entries
+    set name = trim(p_name),
+        entry_date = p_date,
+        photo = coalesce(p_photo, photo),
+        style = coalesce(p_style, style)
+    where id = p_entry_id and player_id = p_player_id;
+  end if;
+
+  return get_state(p_code);
+end;
+$$;
+
+-- Remove a journal entry. The token it was bought with stays spent.
+create or replace function delete_journal_entry(p_code text, p_player_id int, p_entry_id bigint)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform check_code(p_code);
+  delete from journal_entries where id = p_entry_id and player_id = p_player_id;
+  return get_state(p_code);
+end;
+$$;
+
+-- One journal photo, as a data: URL the page can show directly.
+create or replace function get_journal_photo(p_code text, p_entry_id bigint)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform check_code(p_code);
+  return (select photo from journal_entries where id = p_entry_id);
+end;
+$$;
+
 -- Only these functions are callable from the website.
 revoke execute on function check_code(text) from public, anon, authenticated;
 grant execute on function get_state(text) to anon;
 grant execute on function submit_log(text, int, int, date, int) to anon;
 grant execute on function set_hardcore_optin(text, int, boolean, date) to anon;
 grant execute on function submit_reading(text, int, date, int) to anon;
+grant execute on function spend_token(text, int, text, date) to anon;
+grant execute on function unspend_token(text, int, bigint) to anon;
+grant execute on function save_journal_entry(text, int, bigint, text, date, text, jsonb, bigint, text) to anon;
+grant execute on function delete_journal_entry(text, int, bigint) to anon;
+grant execute on function get_journal_photo(text, bigint) to anon;
 
 -- ---------- Seed data ----------
 -- Names must match the keys in passes.js.

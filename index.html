@@ -47,36 +47,51 @@
         <span id="hc-status"></span>
       </div>
 
-      <form id="log-form" class="card">
-        <p class="me-line">
-          <span>Logging as <strong id="me"></strong></span>
-          <button id="switch-player" class="link" type="button">Not you?</button>
-        </p>
+      <!-- Only shown when someone has a journal (see passes.js). -->
+      <nav id="tabs" class="tabs" hidden>
+        <a href="#pass" data-view="pass">🎟️ Pass</a>
+        <a href="#journal" data-view="journal">📔 Journal</a>
+      </nav>
 
-        <p id="status" class="muted"></p>
+      <div id="pass-view">
+        <form id="log-form" class="card">
+          <p class="me-line">
+            <span>Logging as <strong id="me"></strong></span>
+            <button id="switch-player" class="link" type="button">Not you?</button>
+          </p>
 
-        <!-- Collapsed on open; tap the summary to show the fields. -->
-        <details id="log-details" class="log-details">
-          <summary>Log calories and steps</summary>
-          <div class="log-fields">
-            <label for="calories">Today's calories</label>
-            <input id="calories" type="number" inputmode="numeric" min="0" max="20000" required>
+          <p id="status" class="muted"></p>
 
-            <label for="steps">Steps today <span class="optional">(optional)</span></label>
-            <input id="steps" type="number" inputmode="numeric" min="0" max="200000">
+          <!-- Collapsed on open; tap the summary to show the fields. -->
+          <details id="log-details" class="log-details">
+            <summary>Log calories and steps</summary>
+            <div class="log-fields">
+              <label for="calories">Today's calories</label>
+              <input id="calories" type="number" inputmode="numeric" min="0" max="20000" required>
 
-            <button type="submit">Log it</button>
-          </div>
-        </details>
-      </form>
+              <label for="steps">Steps today <span class="optional">(optional)</span></label>
+              <input id="steps" type="number" inputmode="numeric" min="0" max="200000">
 
-      <div id="passes"></div>
+              <button type="submit">Log it</button>
+            </div>
+          </details>
+        </form>
 
-      <section id="hardcore" class="card hc-card" hidden></section>
+        <div id="passes"></div>
+
+        <section id="hardcore" class="card hc-card" hidden></section>
+      </div>
+
+      <div id="journal-view" class="journal-view" hidden></div>
 
       <button id="logout" class="link" type="button">Forget this device</button>
     </section>
   </main>
+
+  <!-- Filled in by app.js (tokens) and journal.js (viewing and editing entries). -->
+  <dialog id="token-dialog" class="sheet"></dialog>
+  <dialog id="j-viewer" class="sheet"></dialog>
+  <dialog id="j-editor" class="sheet sheet-tall"></dialog>
 
   <script type="module" src="app.js"></script>
 </body>
