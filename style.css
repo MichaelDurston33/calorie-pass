@@ -8,9 +8,11 @@
   --accent: #2f7d5b;
   --error: #c0392b;
 
-  /* Bee Jim Hardcore Mode */
-  --hc-black: #111111;
-  --hc-yellow: #ffd43b;
+  /* Bee Jim Hardcore Mode: pastel bee yellow and zombie mint */
+  --hc-ink: #4b3a2f; /* cocoa, for text on the pastels */
+  --hc-honey: #ffd36b;
+  --hc-butter: #fff3c7;
+  --hc-mint: #bfead3;
   --hc-edge: 30px; /* width of the bee and zombie frame */
 }
 
@@ -180,10 +182,10 @@ button:disabled { opacity: 0.6; }
   display: inline-block;
   white-space: nowrap;
   margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--hc-black);
-  color: var(--hc-yellow);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--hc-honey);
+  color: var(--hc-ink);
   font-size: 0.72rem;
   font-weight: 700;
 }
@@ -264,7 +266,7 @@ button:disabled { opacity: 0.6; }
   border-color: var(--pass-node);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--pass-node) 25%, transparent);
 }
-.tier.hc.done .node { border-color: var(--hc-black); }
+.tier.hc.done .node { border-color: var(--hc-honey); }
 
 /* Calories, steps and date logged for each tier. */
 .entry {
@@ -279,10 +281,10 @@ button:disabled { opacity: 0.6; }
 .steps { font-size: 0.66rem; color: var(--pass-ink); }
 .day { font-size: 0.66rem; color: var(--muted); }
 .tier.hc .kcal {
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--hc-black);
-  color: var(--hc-yellow);
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--hc-honey);
+  color: var(--hc-ink);
 }
 
 /* Tier 0: what ended the last streak. */
@@ -359,33 +361,40 @@ button:disabled { opacity: 0.6; }
 
 /* ---------- Bee Jim Hardcore Mode ---------- */
 
+.hc-card {
+  border-color: color-mix(in srgb, var(--hc-honey) 60%, #fff);
+  background: color-mix(in srgb, var(--hc-butter) 45%, #fff);
+}
 .hc-card p { margin: 0; }
 .hc-card .link { justify-self: start; }
 .hc-join {
   justify-self: start;
-  background: var(--hc-black);
-  border-color: var(--hc-black);
-  color: var(--hc-yellow);
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--hc-honey);
+  color: var(--hc-ink);
   font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--hc-honey) 70%, #000);
 }
 .warn { color: var(--error); font-weight: 600; }
 
-/* Hazard-stripe banner at the top of the page. */
+/* Candy-stripe banner at the top of the page: bee honey and zombie mint. */
 .hc-banner {
   display: grid;
   gap: 4px;
   margin-bottom: 16px;
-  padding: 14px 16px;
-  border: 5px solid transparent;
-  border-radius: 12px;
+  padding: 12px 16px;
+  border: 6px solid transparent;
+  border-radius: 18px;
   background:
-    linear-gradient(var(--hc-yellow), var(--hc-yellow)) padding-box,
-    repeating-linear-gradient(-45deg, var(--hc-black) 0 10px, var(--hc-yellow) 10px 20px) border-box;
-  color: var(--hc-black);
+    linear-gradient(var(--hc-butter), var(--hc-butter)) padding-box,
+    repeating-linear-gradient(-45deg, var(--hc-honey) 0 10px, var(--hc-mint) 10px 20px) border-box;
+  color: var(--hc-ink);
   text-align: center;
 }
-.hc-banner strong { font-size: 1.3rem; font-weight: 900; letter-spacing: 0.05em; line-height: 1.2; }
+.hc-banner strong { font-size: 1.2rem; font-weight: 800; letter-spacing: 0.05em; line-height: 1.25; }
 .hc-banner span { font-size: 0.9rem; font-weight: 600; }
 
 /* Bees and zombies crawling around the edge of the screen. */
@@ -398,11 +407,18 @@ body.hardcore .hc-frame {
   z-index: 10;
   pointer-events: none;
 }
+/* The frame's colour, with a rounded, mint-edged window cut out for the page. */
+.hc-frame::before {
+  content: "";
+  position: absolute;
+  inset: var(--hc-edge);
+  border-radius: 16px;
+  box-shadow: 0 0 0 3px var(--hc-mint), 0 0 0 100vmax var(--hc-butter);
+}
 
 .hc-edge {
   position: absolute;
   overflow: hidden;
-  background: var(--hc-black);
   font-size: calc(var(--hc-edge) * 0.6);
   line-height: var(--hc-edge);
   white-space: pre;
@@ -410,7 +426,8 @@ body.hardcore .hc-frame {
 .hc-top, .hc-bottom { left: 0; right: 0; height: var(--hc-edge); }
 .hc-top { top: 0; }
 .hc-bottom { bottom: 0; }
-.hc-left, .hc-right { top: 0; bottom: 0; width: var(--hc-edge); text-align: center; }
+/* The sides stop short of the corners so they don't overlap the top and bottom. */
+.hc-left, .hc-right { top: var(--hc-edge); bottom: var(--hc-edge); width: var(--hc-edge); text-align: center; }
 .hc-left { left: 0; }
 .hc-right { right: 0; }
 

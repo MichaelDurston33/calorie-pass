@@ -95,8 +95,10 @@ function showMain(me) {
   $("pass-view").hidden = view !== "pass";
   $("journal-view").hidden = view !== "journal";
 
-  document.body.classList.toggle("hardcore", Boolean(period));
-  $("hc-banner").hidden = !period;
+  // The bee and zombie frame and banner stay off the journal, to keep it cute.
+  const showHardcore = Boolean(period) && view === "pass";
+  document.body.classList.toggle("hardcore", showHardcore);
+  $("hc-banner").hidden = !showHardcore;
   if (period) {
     const dayNumber = daysBetween(period.start, day) + 1;
     const length = daysBetween(period.start, period.end) + 1;
