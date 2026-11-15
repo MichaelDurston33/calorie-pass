@@ -17,7 +17,7 @@ is one Supabase Edge Function, for group photos.
 - **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
   to use one (it's saved with the date) or undo one used by mistake.
 - **Abbie's prizes (from 16 Nov 2026):** a Plushie Accessory every 14 days, Merch every 20, a Plushie
-  every 25 and a Group Photo every 50, plus one Group Photo to start. Plushies earned before then are kept.
+  every 25 and a Group Photo every 50, plus two Group Photos to start. Plushies earned before then are kept.
 - **Plushie Journal (Abbie):** the Journal tab. Each plushie gets a polaroid with its photo, name and
   what animal it is, in the frame, background, tape and font Abbie picks. It can be bought with a
   Plushie token.

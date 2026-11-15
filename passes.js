@@ -55,7 +55,7 @@ export const PASSES = {
       { every: [{ from: "2026-11-16", days: 14 }], name: "Plushie Accessory", icon: "🎀" },
       { every: 20, name: "Merch", icon: "👕" },
       { every: [{ days: 14 }, { from: "2026-11-16", days: 25 }], name: "Plushie", icon: "🧸" },
-      { every: [{ from: "2026-11-16", days: 50 }], name: "Group Photo!", icon: "📸", gift: 1 },
+      { every: [{ from: "2026-11-16", days: 50 }], name: "Group Photo!", icon: "📸", gift: 2 },
     ],
     journal: { prize: "Plushie", groupPrize: "Group Photo!", title: "Plushie Journal" },
   },
