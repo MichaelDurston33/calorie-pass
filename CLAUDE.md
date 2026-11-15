@@ -22,7 +22,7 @@ There is no build, lint or test tooling, and no tests are committed.
   `calorie-pass-code` and `calorie-pass-player`, gives a full preview without touching real data. Headless
   Edge/Chrome screenshots of that are how UI changes have been checked before pushing.
 - **Testing the rules:** `rules.js` is pure. Its only import is `passes.js`, and it touches no DOM, so Node (22+)
-  can import it directly and call `playStreak` with made-up logs.
+  can import it directly and call `playPass` (or `playStreak`) with made-up logs and reading sessions.
 - **Testing the edge function:** `supabase/functions/group-photo/index.ts` exports `handle(req)`. Mock
   `Deno.env`, `EdgeRuntime.waitUntil` and `fetch` to exercise it.
 - **Database changes:** edit `supabase/schema.sql`. Claude can't apply it, because the site only has the
@@ -47,11 +47,16 @@ There is no build, lint or test tooling, and no tests are committed.
 
 The database stores raw facts only: logs, reading sessions, Hardcore periods, token spends and journal rows.
 
-On every render, `rules.js` `playStreak` replays a player's logs from scratch and derives:
+A player can have several passes (Michael has a calorie pass and a Chinese study pass). On every render,
+`rules.js` `playPass` replays each pass from scratch and derives:
 - the streak (which is also their tier);
 - prizes earned;
 - streak freezes, and the days they covered;
 - what ended the last streak.
+
+What counts as a day depends on the pass (`passDays`):
+- **A calorie pass** counts each day with a calorie log. Hardcore Mode applies only to calorie passes.
+- **A study pass** (`study` in `passes.js`) counts each day with a reading session of at least `study.minutes`.
 
 Tokens are worked out as:
 - **tokens left** = earned (from `playStreak`, including any `gift`) − rows in `token_spends` with that prize's
@@ -59,7 +64,8 @@ Tokens are worked out as:
 
 Consequences:
 - **Prize names are keys.** `token_spends.prize`, journal entries and group photos all refer to a prize by its
-  display name. Renaming a prize in `passes.js` orphans its spends, so it would need a data migration.
+  display name, with no pass column. Renaming a prize in `passes.js` orphans its spends, so it would need a data
+  migration. A player's prize names must also be unique across all their passes.
 - **Never edit a past rule in place.** Settings that change over time (`goal`, a prize's `every`) are lists of
   `{ from: "YYYY-MM-DD", ... }` entries, and each day uses the entry in force on that day. To change a rule, add a
   new dated entry, so streaks and tokens already earned don't change. A prize with no entry yet in force isn't
@@ -72,8 +78,9 @@ Consequences:
 
 ### Config vs code
 
-- `passes.js`: per-player settings, keyed by the player's `name`, which must match the `players` table. Its
-  header comment documents every option: colours, `goal`, `prizes` (`every`, `gift`), `reading` and `journal`.
+- `passes.js`: each player's list of passes, keyed by the player's `name`, which must match the `players` table.
+  A player's first pass supplies their emoji and colours elsewhere (picker, "Logging as"). Its header comment
+  documents every option: colours, `title`, `goal`, `study`, `prizes` (`every`, `first`, `gift`) and `journal`.
 - `journal-palette.js`: the journal's design tokens: frames, backdrops, tapes, fonts, page colours, and the
   default styles for entries and group photos. Each entry's `style` jsonb stores only these ids.
   `resolveStyle()` falls back to the defaults for unknown ids.
@@ -105,17 +112,17 @@ Consequences:
 Not everything goes through this site, so keep these signatures stable or update their callers:
 - `submit_log`: called nightly for **both** players by the scheduler in Michael's separate `yazio-mcp` project
   (Fly.io), which overwrites the calories with Yazio's figure.
-- `submit_reading`: called by Michael's e-reader when a 25-minute session finishes. The request format is in the
-  README.
+- `submit_reading`: called by Michael's e-reader when a 25-minute session finishes. It feeds his Chinese study
+  pass. The request format is in the README.
 
 ### Two views, two modules
 
 - `app.js` handles login, the player picker, passes, the timeline, tokens and Hardcore Mode.
-- `journal.js` is the photo journal. `app.js` calls `initJournal(ctx)` with accessors (`players`, `passFor`,
+- `journal.js` is the photo journal. `app.js` calls `initJournal(ctx)` with accessors (`players`, `journalFor`,
   `tokensFor`, `apply`, `refresh`, …), so the journal doesn't import app state.
 - The view is chosen by the URL hash (`#journal`), and the tab only appears if some pass has `journal`.
 - The Hardcore bee/zombie frame (`body.hardcore`) is deliberately hidden on the journal view.
-- Per-player colours are applied as CSS variables from `pass.colors` (`themeStyle`). The journal page's colours
+- Per-pass colours are applied as CSS variables from `pass.colors` (`themeStyle`). The journal page's colours
   are `--j-*` variables taken from `PAGE`.
 
 ### Photos are text in Postgres

@@ -1,17 +1,20 @@
-// The rules of the game. Your tier on the battle pass is your current streak.
+// The rules of the game. Your tier on a battle pass is your current streak.
+// Someone can have more than one pass (see passes.js), each with its own
+// streak, freezes and prizes, all following these same rules.
 //
-// - Log something every day to keep your streak going.
+// - Do the pass's thing every day to keep its streak going. For a calorie pass
+//   that's logging your calories; for a study pass (`study` in passes.js) it's
+//   a long enough reading session sent by the e-reader.
 // - Miss a day, in either mode, and your streak goes back to 0.
 //   Unless you have a streak freeze: one is earned every FREEZE_EVERY days of a
 //   streak, and each covers one missed day (used automatically). Freezes are
 //   kept after an ordinary reset.
-// - During Bee Jim Hardcore Mode, going over your goal also sends it back to 0.
+// - During Bee Jim Hardcore Mode, going over your goal also sends a calorie
+//   pass back to 0. Hardcore Mode is only about calories, so study passes
+//   carry on as normal while it's on.
 //   Logged steps count: the goal is checked against calories eaten minus steps.
 //   A Bee Jim failure is final: freezes can't cover any day in Hardcore (going
 //   over goal or missing a day), and failing wipes out every freeze you have.
-// - Some people also need a finished reading session on the e-reader each day
-//   (`reading` in passes.js). Without one, the day counts as missed, even if
-//   calories were logged.
 // - Prizes are earned each time your streak reaches their tier. A reset
 //   doesn't take them away, and climbing back up earns them again. If how often
 //   a prize comes changes, each day uses the setting for that day, so prizes
@@ -56,26 +59,39 @@ export function everyOn(every, date) {
   return days;
 }
 
-// The prizes that unlock at `tier` when it's reached on `date`.
-export function prizesAt(prizes, tier, date) {
-  return prizes.filter((p) => {
-    const days = everyOn(p.every, date);
-    return days && tier % days === 0;
-  });
+// Whether `prize` unlocks at `tier` when it's reached on `date`. The first one
+// comes at tier `first` (or `every` if there's no `first`), then one every
+// `every` tiers after that. A prize with only `first` comes once per streak.
+export function unlocksAt(prize, tier, date) {
+  const days = everyOn(prize.every, date); // undefined if it doesn't repeat
+  if (days === null) return false; // its schedule hasn't started yet
+  const first = prize.first ?? days;
+  if (tier === first) return true;
+  return Boolean(days) && tier > first && (tier - first) % days === 0;
 }
 
-// Whether a day needs a reading session, and if so whether it had one.
-// `reading` is the pass's setting ({ from, minutes }), `sessions` the player's
-// reading days: [{ date, minutes }].
-export function needsReading(reading, date) {
-  return Boolean(reading && reading.from <= date);
+// The prizes that unlock at `tier` when it's reached on `date`.
+export function prizesAt(prizes, tier, date) {
+  return prizes.filter((p) => unlocksAt(p, tier, date));
 }
-export function readOn(reading, sessions, date) {
-  const s = sessions.find((r) => r.date === date);
-  return Boolean(s && s.minutes >= reading.minutes);
+
+// The days that move a pass on, oldest first. A calorie pass counts every day
+// with calories logged ([{ date, calories, steps }]). A study pass counts days
+// with a reading session of at least `study.minutes` ([{ date, minutes }]).
+export function passDays(pass, player) {
+  if (!pass.study) return player.logs;
+  return (player.reading ?? []).filter((r) => r.minutes >= pass.study.minutes);
 }
-export function dayCounts(reading, sessions, date) {
-  return !needsReading(reading, date) || readOn(reading, sessions, date);
+
+// One pass's streak for one player (see playStreak). Hardcore Mode is only
+// about calories, so it doesn't touch study passes.
+export function playPass(pass, player, { periods, today }) {
+  return playStreak(passDays(pass, player), {
+    goal: pass.goal,
+    prizes: pass.prizes,
+    periods: pass.study ? [] : periods,
+    today,
+  });
 }
 
 // Tokens left to spend for each prize, in the same order as `prizes`: earned on
@@ -89,19 +105,15 @@ export function hardcorePeriodOn(date, periods) {
   return periods.find((p) => p.start <= date && date <= p.end);
 }
 
-// Replays someone's logs (oldest first) and returns:
-//   run    - the logs making up the current streak, so tier 1 is run[0]
+// Replays the days that count for a pass (oldest first, see passDays) and returns:
+//   run    - the days making up the current streak, so tier 1 is run[0]
 //   reset  - what ended the previous streak, if anything:
 //            { date, calories (net of steps), goal } for going over goal in Hardcore,
-//            { date, missed: true } for a day with nothing logged (or, when
-//            reading is needed, no reading session)
+//            { date, missed: true } for a day that didn't count
 //   earned - how many of each prize have been earned (plus any gift), in the same order as `prizes`
 //   freezes - streak freezes left
 //   frozen  - the missed days that freezes covered
-export function playStreak(logs, { goal, prizes, periods, today, reading, sessions = [] }) {
-  // Days missing a needed reading session don't count, so they're gaps like unlogged days.
-  logs = logs.filter((log) => dayCounts(reading, sessions, log.date));
-
+export function playStreak(logs, { goal, prizes, periods, today }) {
   let run = [];
   let reset = null;
   let last = null;

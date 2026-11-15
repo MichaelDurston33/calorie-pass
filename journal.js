@@ -28,7 +28,7 @@ const CHECK_EVERY = 5000;
 // Each polaroid sits at a slight angle, always the same one for the same entry.
 const TILTS = [-2.5, 1.8, -1.2, 2.6, -1.8, 1.2];
 
-// From app.js: { code(), myId(), players(), passFor(player), tokensFor(player), apply(state), refresh() }
+// From app.js: { code(), myId(), players(), journalFor(player), tokensFor(player), apply(state), refresh() }
 let ctx;
 
 export function initJournal(context) {
@@ -62,14 +62,14 @@ export function initJournal(context) {
 export function renderJournal() {
   loadFonts();
   const view = $("journal-view");
-  const people = ctx.players().filter((p) => ctx.passFor(p).journal);
+  const people = ctx.players().filter((p) => ctx.journalFor(p));
   view.innerHTML = people.map(journalHtml).join("");
   watchPhotos(view);
   checkBackIfDeveloping(people);
 }
 
 function journalHtml(player) {
-  const { prize, groupPrize, title } = ctx.passFor(player).journal;
+  const { prize, groupPrize, title } = ctx.journalFor(player);
   const mine = isMine(player);
   const token = tokenFor(player, prize);
   const groupToken = groupPrize && tokenFor(player, groupPrize);
@@ -368,7 +368,7 @@ function openViewer(id) {
   if (!viewing) return;
   const { player, entry } = viewing;
   const spend = (player.spends ?? []).find((s) => s.id === entry.spendId);
-  const icon = tokenFor(player, ctx.passFor(player).journal.prize)?.prize.icon ?? "";
+  const icon = tokenFor(player, ctx.journalFor(player).prize)?.prize.icon ?? "";
   const how = spend
     ? `${icon} Bought with the token used on ${fmtDay(spend.date, { year: "numeric" })}`
     : `Added for ${fmtDay(entry.date, { year: "numeric" })}`;
@@ -554,7 +554,7 @@ function buildEditor() {
 export function openEditor(playerId, { entry = null, group = null, token = null } = {}) {
   loadFonts();
   const player = ctx.players().find((p) => p.id === playerId);
-  const { prize } = ctx.passFor(player).journal;
+  const { prize } = ctx.journalFor(player);
   draft = { player, entry, group, photo: null };
 
   $("j-title").textContent = group ? "Customise group photo" : entry ? `Edit ${entry.name}` : `New ${prize.toLowerCase()}`;
@@ -678,7 +678,7 @@ async function saveEntry(e) {
           p_photo: photo,
           p_style: style,
           p_spend_id: !entry && /^\d+$/.test(token) ? Number(token) : null,
-          p_new_token: !entry && token === "new" ? ctx.passFor(player).journal.prize : null,
+          p_new_token: !entry && token === "new" ? ctx.journalFor(player).prize : null,
           p_species: $("j-species").value.trim().toLowerCase() || null,
         });
 
@@ -739,7 +739,7 @@ function buildGroupMaker() {
 export function openGroupMaker(playerId) {
   loadFonts();
   const player = ctx.players().find((p) => p.id === playerId);
-  const { groupPrize } = ctx.passFor(player).journal;
+  const { groupPrize } = ctx.journalFor(player);
   const token = tokenFor(player, groupPrize);
   making = player;
 
@@ -793,7 +793,7 @@ async function startGroupPhoto(e) {
     await callFunction("group-photo", {
       code: ctx.code(),
       playerId: making.id,
-      prize: ctx.passFor(making).journal.groupPrize,
+      prize: ctx.journalFor(making).groupPrize,
       prompt: $("g-prompt").value.trim(),
       entryIds: chosenPlushies(),
       date: today(),

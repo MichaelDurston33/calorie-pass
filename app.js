@@ -1,5 +1,5 @@
 import { FREEZE_EVERY, PASSES, TIMELINE_LENGTH } from "./passes.js";
-import { addDays, everyOn, goalOn, hardcorePeriodOn, needsReading, netCalories, playStreak, prizesAt, readOn, stepKcal, tokensLeft } from "./rules.js";
+import { addDays, goalOn, hardcorePeriodOn, netCalories, passDays, playPass, prizesAt, stepKcal, tokensLeft, unlocksAt } from "./rules.js";
 import { $, escapeHtml, fmtDay, rpc, today } from "./util.js";
 import { initJournal, openEditor, openGroupMaker, renderJournal } from "./journal.js";
 
@@ -66,7 +66,7 @@ function showPicker() {
   showScreen("pick");
   $("pick-buttons").innerHTML = inPassOrder(players)
     .map((p) => {
-      const pass = passFor(p);
+      const pass = mainPass(p);
       return `
         <button class="pick-btn" type="button" data-id="${p.id}" style="${escapeHtml(themeStyle(pass.colors))}">
           ${pass.emoji ? `<span class="pick-emoji">${escapeHtml(pass.emoji)}</span>` : ""}
@@ -78,7 +78,7 @@ function showPicker() {
 
 // "pass" or "journal", from the address (#journal), so the back button works.
 function currentView() {
-  return location.hash === "#journal" && players.some((p) => passFor(p).journal) ? "journal" : "pass";
+  return location.hash === "#journal" && players.some((p) => journalFor(p)) ? "journal" : "pass";
 }
 
 function showMain(me) {
@@ -87,7 +87,7 @@ function showMain(me) {
   const period = hardcorePeriodOn(day, hardcore.periods);
   const view = currentView();
 
-  $("tabs").hidden = !players.some((p) => passFor(p).journal);
+  $("tabs").hidden = !players.some((p) => journalFor(p));
   for (const tab of document.querySelectorAll("#tabs a")) {
     tab.classList.toggle("active", tab.dataset.view === view);
     if (tab.dataset.view === view) tab.setAttribute("aria-current", "page");
@@ -109,17 +109,13 @@ function showMain(me) {
       (period.preview ? " (Preview on this device only: nothing is saved.)" : "");
   }
 
-  const { goal, reading } = passFor(me);
-  const goalToday = goalOn(goal, day);
+  const goalToday = goalOn(caloriePass(me)?.goal, day);
   const todays = me.logs.find((l) => l.date === day);
   $("me").textContent = displayName(me);
   $("status").textContent = [
     todays
       ? `Logged today: ${describeDay(todays)}. Submit again to correct it.`
       : "Not logged today yet. Log before midnight to keep your streak.",
-    needsReading(reading, day) && !readOn(reading, me.reading ?? [], day)
-      ? `Today also needs a finished ${reading.minutes}-minute reading session on the e-reader.`
-      : "",
     period && goalToday ? `Hardcore goal: ${fmtKcal(goalToday)} kcal or less.` : "",
   ]
     .filter(Boolean)
@@ -133,7 +129,9 @@ function showMain(me) {
 }
 
 function renderPasses(day) {
-  $("passes").innerHTML = inPassOrder(players).map((p) => renderPass(p, day)).join("");
+  $("passes").innerHTML = inPassOrder(players)
+    .flatMap((p) => passesFor(p).map((pass) => renderPass(p, pass, day)))
+    .join("");
 
   // Start each timeline centred on the next tier to earn.
   for (const timeline of document.querySelectorAll(".timeline")) {
@@ -146,14 +144,29 @@ function renderPasses(day) {
 // `dateOf(t)` is the day tier t would be reached.
 function nextPrizeTier(prize, streak, dateOf) {
   for (let t = streak + 1; t <= streak + 1000; t++) {
-    const days = everyOn(prize.every, dateOf(t));
-    if (days && t % days === 0) return t;
+    if (unlocksAt(prize, t, dateOf(t))) return t;
   }
   return null;
 }
 
-function passFor(player) {
-  return PASSES[player.name] ?? { prizes: [] };
+// Someone's passes, in the order they're listed in passes.js.
+function passesFor(player) {
+  return PASSES[player.name] ?? [{ prizes: [] }];
+}
+
+// Their first pass, which gives them their emoji and colours.
+function mainPass(player) {
+  return passesFor(player)[0];
+}
+
+// The pass their calories count towards, which has their Hardcore goal.
+function caloriePass(player) {
+  return passesFor(player).find((pass) => !pass.study);
+}
+
+// Their photo journal's settings, if they have one.
+function journalFor(player) {
+  return passesFor(player).find((pass) => pass.journal)?.journal;
 }
 
 // Position in passes.js; anyone not listed there goes last.
@@ -173,40 +186,34 @@ function isMe(player) {
 
 // "🐝 Abbie"
 function displayName(player) {
-  const emoji = passFor(player).emoji;
+  const emoji = mainPass(player).emoji;
   return emoji ? `${emoji} ${player.name}` : player.name;
 }
 
-// Replays someone's logs: their streak, prizes earned and freezes (see rules.js).
-function streakFor(player, day = today()) {
-  const pass = passFor(player);
-  return playStreak(player.logs, {
-    goal: pass.goal,
-    prizes: pass.prizes,
-    periods: hardcore.periods,
-    today: day,
-    reading: pass.reading,
-    sessions: player.reading ?? [],
+// Replays one of someone's passes: its streak, prizes earned and freezes (see rules.js).
+function streakFor(player, pass, day = today()) {
+  return playPass(pass, player, { periods: hardcore.periods, today: day });
+}
+
+// Each prize's tokens, across all of someone's passes: the pass it's on, how
+// many were earned, which were spent, and how many are left.
+function tokensFor(player, day = today()) {
+  const spends = player.spends ?? [];
+  return passesFor(player).flatMap((pass) => {
+    const { earned } = streakFor(player, pass, day);
+    const left = tokensLeft(pass.prizes, earned, spends);
+    return pass.prizes.map((prize, i) => ({
+      pass,
+      prize,
+      earned: earned[i],
+      left: left[i],
+      spends: spends.filter((s) => s.prize === prize.name),
+    }));
   });
 }
 
-// Each prize's tokens: how many were earned, which were spent, and how many are left.
-function tokensFor(player, day = today()) {
-  const { prizes } = passFor(player);
-  const { earned } = streakFor(player, day);
-  const spends = player.spends ?? [];
-  const left = tokensLeft(prizes, earned, spends);
-  return prizes.map((prize, i) => ({
-    prize,
-    earned: earned[i],
-    left: left[i],
-    spends: spends.filter((s) => s.prize === prize.name),
-  }));
-}
-
-function renderPass(player, day) {
-  const pass = passFor(player);
-  const { run, reset, freezes, frozen } = streakFor(player, day);
+function renderPass(player, pass, day) {
+  const { run, reset, freezes, frozen } = streakFor(player, pass, day);
   const streak = run.length;
   // The day each tier was (or would be) reached, if the streak keeps going. A
   // prize's schedule can change from a date, so this decides which tiers have it.
@@ -223,16 +230,17 @@ function renderPass(player, day) {
     Math.ceil((streak + 1) / TIMELINE_LENGTH) * TIMELINE_LENGTH,
     ...upcoming.map((p) => p.tier)
   );
-  const tiers = reset ? [renderReset(reset, player)] : [];
+  const tiers = reset ? [renderReset(reset, pass)] : [];
   for (let t = 1; t <= end; t++) {
-    tiers.push(renderTier(t, run[t - 1], streak, prizesAt(pass.prizes, t, dateOf(t)), pass.reading));
+    tiers.push(renderTier(t, run[t - 1], streak, prizesAt(pass.prizes, t, dateOf(t)), pass));
   }
 
-  const loggedToday = player.logs.some((l) => l.date === day);
+  const doneToday = passDays(pass, player).some((d) => d.date === day);
+  const [doneText, notDoneText] = pass.study
+    ? ["📖 Read today", "📖 Not read today"]
+    : ["✓ Logged today", "Not logged today"];
   const goalToday = goalOn(pass.goal, day);
   const showGoal = goalToday && hardcorePeriodOn(day, hardcore.periods);
-  const showReading = needsReading(pass.reading, day);
-  const readToday = showReading && readOn(pass.reading, player.reading ?? [], day);
 
   return `
     <section class="pass" style="${escapeHtml(themeStyle(pass.colors))}">
@@ -240,18 +248,11 @@ function renderPass(player, day) {
         <div class="who">
           ${pass.emoji ? `<span class="avatar" aria-hidden="true">${escapeHtml(pass.emoji)}</span>` : ""}
           <div>
-            <h2>${escapeHtml(player.name)}</h2>
+            <h2>${escapeHtml(pass.title ? `${player.name} · ${pass.title}` : player.name)}</h2>
             ${
-              loggedToday
-                ? `<span class="today is-done">✓ Logged today</span>`
-                : `<span class="today">Not logged today</span>`
-            }
-            ${
-              showReading
-                ? readToday
-                  ? `<span class="today is-done">📖 Read today</span>`
-                  : `<span class="today">📖 Not read today</span>`
-                : ""
+              doneToday
+                ? `<span class="today is-done">${doneText}</span>`
+                : `<span class="today">${notDoneText}</span>`
             }
             ${showGoal ? `<span class="goal">Goal ${fmtKcal(goalToday)} kcal</span>` : ""}
           </div>
@@ -266,7 +267,7 @@ function renderPass(player, day) {
         <div class="timeline"><ol class="tiers">${tiers.join("")}</ol></div>
         <button class="scroll-btn" type="button" data-dir="1" aria-label="Scroll forward">›</button>
       </div>
-      ${renderFooter(streak, pass.prizes, upcoming, tokensFor(player, day), isMe(player))}
+      ${renderFooter(streak, pass.prizes, upcoming, tokensFor(player, day).filter((t) => t.pass === pass), isMe(player))}
     </section>`;
 }
 
@@ -283,16 +284,17 @@ function renderFreezes(streak, freezes, frozen) {
   return `<span class="freezes" title="${escapeHtml(title)}">❄️ ${freezes}</span>`;
 }
 
-// `log` is the day that earned this tier, if it's been earned.
+// `log` is the day that earned this tier, if it's been earned: calories logged
+// on a calorie pass, or a reading session on a study pass.
 // `rewards` are the prizes that unlock at this tier.
-function renderTier(t, log, streak, rewards, reading) {
+function renderTier(t, log, streak, rewards, pass) {
   const earned = t <= streak;
   const cls = ["tier", earned && "done", t === streak + 1 && "next", rewards.length && "has-prize", log?.hardcore && "hc"]
     .filter(Boolean)
     .join(" ");
   const title = [
     `Tier ${t}`,
-    log && `${fmtDay(log.date)}: ${describeDay(log)}${needsReading(reading, log.date) ? " + reading" : ""}${log.hardcore ? " (Hardcore)" : ""}`,
+    log && `${fmtDay(log.date)}: ${pass.study ? `${log.minutes} min reading` : describeDay(log)}${log.hardcore ? " (Hardcore)" : ""}`,
     rewards.length && rewards.map((r) => r.name).join(" + "),
   ]
     .filter(Boolean)
@@ -323,25 +325,26 @@ function renderTier(t, log, streak, rewards, reading) {
     <li class="${cls}" title="${escapeHtml(title)}">
       <span class="tier-num">${t}</span>
       <span class="rail"><span class="node"></span></span>
-      ${renderEntry(log && fmtKcal(log.calories), log?.date, log?.steps)}
+      ${renderEntry(log && (pass.study ? `${log.minutes} min` : fmtKcal(log.calories)), log?.date, log?.steps)}
       ${cards}
     </li>`;
 }
 
 // Tier 0: what ended the last streak, so it stays visible to both of you.
-function renderReset(reset, player) {
-  // A missed day that did have calories logged was missing its reading session.
-  const noReading = reset.missed && player.logs.some((l) => l.date === reset.date);
-  const title = noReading
-    ? `Streak reset: no reading session on ${fmtDay(reset.date)}`
-    : reset.missed
-    ? `Streak reset: nothing logged on ${fmtDay(reset.date)}`
-    : `Streak reset: ${fmtKcal(reset.calories)} kcal net on ${fmtDay(reset.date)}, over the ${fmtKcal(reset.goal)} kcal Hardcore goal`;
+function renderReset(reset, pass) {
+  let title;
+  if (!reset.missed) {
+    title = `Streak reset: ${fmtKcal(reset.calories)} kcal net on ${fmtDay(reset.date)}, over the ${fmtKcal(reset.goal)} kcal Hardcore goal`;
+  } else if (pass.study) {
+    title = `Streak reset: no ${pass.study.minutes}-minute reading session on ${fmtDay(reset.date)}`;
+  } else {
+    title = `Streak reset: nothing logged on ${fmtDay(reset.date)}`;
+  }
   return `
     <li class="tier reset" title="${escapeHtml(title)}">
       <span class="tier-num">0</span>
       <span class="rail"><span class="node">💥</span></span>
-      ${renderEntry(noReading ? "No reading" : reset.missed ? "Missed" : fmtKcal(reset.calories), reset.date)}
+      ${renderEntry(reset.missed ? "Missed" : fmtKcal(reset.calories), reset.date)}
     </li>`;
 }
 
@@ -405,7 +408,9 @@ let tokenPrize = null; // the prize whose sheet is open
 function openTokenSheet(prizeName) {
   tokenPrize = prizeName;
   const me = players.find((p) => isMe(p));
-  $("token-dialog").setAttribute("style", themeStyle(passFor(me).colors));
+  // In the colours of the pass the prize is on.
+  const token = tokensFor(me).find((t) => t.prize.name === prizeName);
+  $("token-dialog").setAttribute("style", themeStyle(token?.pass.colors));
   renderTokenSheet();
   $("token-dialog").showModal();
 }
@@ -415,7 +420,7 @@ function renderTokenSheet(message = "") {
   const token = me && tokensFor(me).find((t) => t.prize.name === tokenPrize);
   if (!token) return $("token-dialog").close();
   const { prize, left, earned, spends } = token;
-  const journal = passFor(me).journal;
+  const journal = journalFor(me);
   const forJournal = journal?.prize === prize.name;
   const forGroup = journal?.groupPrize === prize.name;
   // What each token was used on, where it's in the journal.
@@ -445,7 +450,8 @@ function renderTokenSheet(message = "") {
     actions = `
       <button class="token-use" type="button" data-use="journal">＋ Use one for a new ${escapeHtml(thing)}</button>
       <button class="link" type="button" data-use="plain">Use one without a journal entry</button>`;
-  else actions = `<button class="token-use" type="button" data-use="plain">Use a ${escapeHtml(thing)} token</button>`;
+  // The name as written, so "Trip to China" keeps its capital C.
+  else actions = `<button class="token-use" type="button" data-use="plain">Use a ${escapeHtml(prize.name)} token</button>`;
 
   $("token-dialog").innerHTML = `
     <div class="sheet-bar">
@@ -502,7 +508,7 @@ function renderHardcoreCard(me, day, period) {
   const others = players.filter((p) => p.id !== me.id);
   const othersIn = others.filter((p) => hardcore.optins.includes(p.id));
   const waitingOnMe = !meIn && othersIn.length > 0;
-  const goal = goalOn(passFor(me).goal, day);
+  const goal = goalOn(caloriePass(me)?.goal, day);
   const names = (list) => escapeHtml(list.map(displayName).join(" and "));
 
   let body;
@@ -515,7 +521,7 @@ function renderHardcoreCard(me, day, period) {
     const overToday = waitingOnMe
       ? players.filter((p) => {
           const log = p.logs.find((l) => l.date === day);
-          const g = goalOn(passFor(p).goal, day);
+          const g = goalOn(caloriePass(p)?.goal, day);
           return log && g && netCalories(log) > g;
         })
       : [];
@@ -663,7 +669,7 @@ initJournal({
   code: () => code,
   myId: () => myId,
   players: () => players,
-  passFor,
+  journalFor,
   tokensFor,
   apply(state) {
     setState(state);

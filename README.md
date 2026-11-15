@@ -7,12 +7,14 @@ is one Supabase Edge Function, for group photos.
 
 ## Rules
 
-- Your tier on the battle pass is your **streak**: how many days in a row you've logged.
+- Your tier on a battle pass is your **streak**: how many days in a row you've logged.
 - Miss a day and your streak goes back to 0.
 - **Bee Jim Hardcore Mode:** once you've both opted in, it's on for 7 days, starting that day.
-  Logging more than your goal during it also sends your streak back to 0.
-- **Reading (Michael, from 11 Nov 2026):** a day only counts once the e-reader has also sent a finished
-  25-minute reading session. Calories without a session count as a missed day.
+  Logging more than your goal during it also sends your streak back to 0. It only affects calorie passes.
+- **Michael's Chinese pass:** a second pass, separate from his calories. A day counts once the e-reader has
+  sent a finished 25-minute reading session (sessions since 11 Nov 2026 count). Its prizes: £100 at day 7 of a
+  streak, then another £100 every 14 days after that (days 21, 35, 49, ...), and a trip to China at day 100.
+  It has its own streak freezes too.
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
 - **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
   to use one (it's saved with the date) or undo one used by mistake.
@@ -23,7 +25,8 @@ is one Supabase Edge Function, for group photos.
   Plushie token.
 - **Group photos:** a Group Photo token turns the plushies into a picture of them all alive together,
   doing whatever Abbie types ("all camping together"). It goes across the top of the journal.
-- Everyone's calories are shown under each day of their pass, and a 💥 marks what ended the last streak.
+- Everyone's calories (or minutes read, on the Chinese pass) are shown under each day of their pass, and a 💥
+  marks what ended the last streak.
 
 ## Setup
 
@@ -40,7 +43,7 @@ is one Supabase Edge Function, for group photos.
 
 ## Customising
 
-- Each person's colours, prizes, Hardcore goal and journal: [passes.js](passes.js)
+- Each person's passes, with their colours, prizes, Hardcore goal and journal: [passes.js](passes.js)
 - The journal's frames, backgrounds, tapes and fonts: [journal-palette.js](journal-palette.js)
 - The streak rules: [rules.js](rules.js)
 - Look and feel: [style.css](style.css)
@@ -65,7 +68,8 @@ apikey: <the publishable key from config.js>
   failed and is worth retrying; a wrong code gives `{ "message": "Invalid code" }`.
 - Sending twice is harmless: it just records another session.
 
-To change who needs reading, from when, or for how long: `reading` in [passes.js](passes.js).
+Each session counts towards Michael's Chinese pass. To change how many minutes a day needs: `study` in
+[passes.js](passes.js).
 
 ## The group photo camera
 
