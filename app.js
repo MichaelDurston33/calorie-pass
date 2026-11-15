@@ -1,7 +1,7 @@
 import { FREEZE_EVERY, PASSES, TIMELINE_LENGTH } from "./passes.js";
-import { addDays, goalOn, hardcorePeriodOn, needsReading, netCalories, playStreak, readOn, stepKcal, tokensLeft } from "./rules.js";
+import { addDays, everyOn, goalOn, hardcorePeriodOn, needsReading, netCalories, playStreak, prizesAt, readOn, stepKcal, tokensLeft } from "./rules.js";
 import { $, escapeHtml, fmtDay, rpc, today } from "./util.js";
-import { initJournal, openEditor, renderJournal } from "./journal.js";
+import { initJournal, openEditor, openGroupMaker, renderJournal } from "./journal.js";
 
 const CODE_KEY = "calorie-pass-code";
 const PLAYER_KEY = "calorie-pass-player";
@@ -22,7 +22,8 @@ function storageRemove(key) {
 let code = storageGet(CODE_KEY);
 let myId = storageGet(PLAYER_KEY);
 // [{ id, name, logs: [{ date, calories, steps }], reading: [{ date, minutes }],
-//    spends: [{ id, prize, date }], journal: [{ id, name, date, style, spendId }] }], oldest first
+//    spends: [{ id, prize, date }], journal: [{ id, name, species, date, style, spendId }],
+//    groupPhotos: [{ id, status, error, prompt, caption, date, style, spendId, shownAt, createdAt }] }], oldest first
 let players = [];
 let hardcore = { periods: [], optins: [] }; // periods: [{ start, end }], optins: [player id]
 
@@ -141,9 +142,14 @@ function renderPasses(day) {
   }
 }
 
-// First tier after `streak` where a prize repeating `every` N tiers unlocks.
-function nextPrizeTier(streak, every) {
-  return (Math.floor(streak / every) + 1) * every;
+// First tier after `streak` where `prize` unlocks, or null if it isn't coming.
+// `dateOf(t)` is the day tier t would be reached.
+function nextPrizeTier(prize, streak, dateOf) {
+  for (let t = streak + 1; t <= streak + 1000; t++) {
+    const days = everyOn(prize.every, dateOf(t));
+    if (days && t % days === 0) return t;
+  }
+  return null;
 }
 
 function passFor(player) {
@@ -202,7 +208,13 @@ function renderPass(player, day) {
   const pass = passFor(player);
   const { run, reset, freezes, frozen } = streakFor(player, day);
   const streak = run.length;
-  const upcoming = pass.prizes.map((p) => ({ ...p, tier: nextPrizeTier(streak, p.every) }));
+  // The day each tier was (or would be) reached, if the streak keeps going. A
+  // prize's schedule can change from a date, so this decides which tiers have it.
+  const countedToday = run[streak - 1]?.date === day;
+  const dateOf = (t) => run[t - 1]?.date ?? addDays(day, t - streak - (countedToday ? 0 : 1));
+  const upcoming = pass.prizes
+    .map((p) => ({ ...p, tier: nextPrizeTier(p, streak, dateOf) }))
+    .filter((p) => p.tier);
 
   // The pass never ends: show TIMELINE_LENGTH tiers, extending by that much
   // each time the end is reached, and always far enough to show one of each
@@ -212,7 +224,9 @@ function renderPass(player, day) {
     ...upcoming.map((p) => p.tier)
   );
   const tiers = reset ? [renderReset(reset, player)] : [];
-  for (let t = 1; t <= end; t++) tiers.push(renderTier(t, run[t - 1], streak, pass.prizes, pass.reading));
+  for (let t = 1; t <= end; t++) {
+    tiers.push(renderTier(t, run[t - 1], streak, prizesAt(pass.prizes, t, dateOf(t)), pass.reading));
+  }
 
   const loggedToday = player.logs.some((l) => l.date === day);
   const goalToday = goalOn(pass.goal, day);
@@ -270,8 +284,8 @@ function renderFreezes(streak, freezes, frozen) {
 }
 
 // `log` is the day that earned this tier, if it's been earned.
-function renderTier(t, log, streak, prizes, reading) {
-  const rewards = prizes.filter((p) => t % p.every === 0);
+// `rewards` are the prizes that unlock at this tier.
+function renderTier(t, log, streak, rewards, reading) {
   const earned = t <= streak;
   const cls = ["tier", earned && "done", t === streak + 1 && "next", rewards.length && "has-prize", log?.hardcore && "hc"]
     .filter(Boolean)
@@ -284,16 +298,26 @@ function renderTier(t, log, streak, prizes, reading) {
     .filter(Boolean)
     .join(" · ");
 
-  const cards = rewards
-    .map(
-      (r) => `
-        <div class="reward${earned ? " earned" : ""}">
-          ${earned ? `<span class="check" aria-label="Earned">✓</span>` : ""}
-          <span class="reward-icon">${escapeHtml(r.icon)}</span>
-          <span class="reward-name">${escapeHtml(r.name)}</span>
-        </div>`
-    )
-    .join("");
+  // One card per tier. Several prizes on the same tier are listed on one card,
+  // so the timeline doesn't grow taller.
+  const check = earned ? `<span class="check" aria-label="Earned">✓</span>` : "";
+  let cards = "";
+  if (rewards.length === 1) {
+    cards = `
+      <div class="reward${earned ? " earned" : ""}">
+        ${check}
+        <span class="reward-icon">${escapeHtml(rewards[0].icon)}</span>
+        <span class="reward-name">${escapeHtml(rewards[0].name)}</span>
+      </div>`;
+  } else if (rewards.length) {
+    cards = `
+      <div class="reward multi${earned ? " earned" : ""}">
+        ${check}
+        ${rewards
+          .map((r) => `<span class="reward-row"><span>${escapeHtml(r.icon)}</span>${escapeHtml(r.name)}</span>`)
+          .join("")}
+      </div>`;
+  }
 
   return `
     <li class="${cls}" title="${escapeHtml(title)}">
@@ -350,6 +374,9 @@ function renderFooter(streak, prizes, upcoming, tokens, mine) {
     .filter((p) => p.tier === soonest)
     .map((p) => `${p.icon} ${p.name}`)
     .join(" + ");
+  const next = upcoming.length
+    ? `<span>Next: <strong>${escapeHtml(nextNames)}</strong> in ${toGo} ${toGo === 1 ? "day" : "days"}</span>`
+    : "";
 
   const chips = tokens
     .map(({ prize, left, earned }) => {
@@ -364,7 +391,7 @@ function renderFooter(streak, prizes, upcoming, tokens, mine) {
 
   return `
     <div class="pass-foot">
-      <span>Next: <strong>${escapeHtml(nextNames)}</strong> in ${toGo} ${toGo === 1 ? "day" : "days"}</span>
+      ${next}
       <span class="tokens">Tokens to spend ${chips}</span>
     </div>`;
 }
@@ -388,9 +415,16 @@ function renderTokenSheet(message = "") {
   const token = me && tokensFor(me).find((t) => t.prize.name === tokenPrize);
   if (!token) return $("token-dialog").close();
   const { prize, left, earned, spends } = token;
-  const forJournal = passFor(me).journal?.prize === prize.name;
-  const named = new Map((me.journal ?? []).filter((e) => e.spendId).map((e) => [e.spendId, e.name]));
+  const journal = passFor(me).journal;
+  const forJournal = journal?.prize === prize.name;
+  const forGroup = journal?.groupPrize === prize.name;
+  // What each token was used on, where it's in the journal.
+  const named = new Map([
+    ...(me.journal ?? []).filter((e) => e.spendId).map((e) => [e.spendId, e.name]),
+    ...(me.groupPhotos ?? []).filter((g) => g.spendId).map((g) => [g.spendId, g.caption || "Group photo"]),
+  ]);
   const thing = prize.name.toLowerCase();
+  const gift = prize.gift ? ` (${prize.gift} ${prize.gift === 1 ? "was a gift" : "were gifts"} 🎁)` : "";
 
   const history = [...spends]
     .reverse()
@@ -405,6 +439,8 @@ function renderTokenSheet(message = "") {
 
   let actions;
   if (!left) actions = `<p class="muted">No tokens to spend right now. Keep your streak going!</p>`;
+  else if (forGroup)
+    actions = `<button class="token-use" type="button" data-use="group">📸 Make a group photo</button>`;
   else if (forJournal)
     actions = `
       <button class="token-use" type="button" data-use="journal">＋ Use one for a new ${escapeHtml(thing)}</button>
@@ -416,7 +452,7 @@ function renderTokenSheet(message = "") {
       <h2>${escapeHtml(`${prize.icon} ${prize.name} tokens`)}</h2>
       <button class="sheet-close" type="button" data-close aria-label="Close">✕</button>
     </div>
-    <p class="token-count"><strong>${left}</strong> to spend <span class="muted">· ${earned} earned · ${spends.length} used</span></p>
+    <p class="token-count"><strong>${left}</strong> to spend <span class="muted">· ${earned} earned${escapeHtml(gift)} · ${spends.length} used</span></p>
     ${message ? `<p class="token-msg">${escapeHtml(message)}</p>` : ""}
     <div class="token-actions">${actions}</div>
     <h3>Used</h3>
@@ -430,10 +466,11 @@ $("token-dialog").addEventListener("click", async (e) => {
   const use = e.target.closest("[data-use]");
   const unspend = e.target.closest("[data-unspend]");
 
-  if (use?.dataset.use === "journal") {
+  if (use?.dataset.use === "journal" || use?.dataset.use === "group") {
     dialog.close();
     location.hash = "journal";
-    openEditor(Number(myId), { token: "new" });
+    if (use.dataset.use === "group") openGroupMaker(Number(myId));
+    else openEditor(Number(myId), { token: "new" });
     return;
   }
 
@@ -630,6 +667,11 @@ initJournal({
   tokensFor,
   apply(state) {
     setState(state);
+    show();
+  },
+  // Fetches the latest state, e.g. to see if a group photo has finished.
+  async refresh() {
+    setState(await rpc("get_state", { p_code: code }));
     show();
   },
 });

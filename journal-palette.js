@@ -53,6 +53,27 @@ export const FONTS = [
 // What a new entry starts with: Abbie's lime and teal.
 export const DEFAULT_STYLE = { frame: "cream", backdrop: "meadow", tape: "lagoon", font: "scribbly" };
 
+// What a new group photo starts with.
+export const DEFAULT_GROUP_STYLE = { frame: "cream", backdrop: "bubbles", tape: "butter", font: "bubbly" };
+
+// Suggestions for what animal a plushie is (anything can be typed).
+export const SPECIES = [
+  "bear", "bunny", "cat", "dog", "goat", "sheep", "cow", "pig", "frog", "duck", "chick", "penguin",
+  "owl", "fox", "panda", "koala", "monkey", "elephant", "giraffe", "lion", "tiger", "unicorn",
+  "dragon", "dinosaur", "axolotl", "octopus", "whale", "seal", "turtle", "hedgehog", "mouse",
+  "hamster", "otter", "raccoon", "deer", "bee", "snail", "mushroom",
+];
+
+// One-tap ideas for what the plushies are doing in a group photo.
+export const GROUP_IDEAS = [
+  { label: "🏕️ Camping", text: "all camping together around a campfire under the stars" },
+  { label: "💃 Dancing", text: "all dancing together at a sparkly party" },
+  { label: "🧺 Picnic", text: "having a picnic together in a sunny meadow" },
+  { label: "🛋️ Cosy night", text: "snuggled up together on a sofa watching a film with popcorn" },
+  { label: "🎂 Party", text: "celebrating a birthday together with cake and balloons" },
+  { label: "🏖️ Beach", text: "having a fun day at the beach together" },
+];
+
 // The journal screen itself: lime-cream dotted paper, teal ink, a yellow button.
 export const PAGE = {
   bg: "#fbfcf4",

@@ -2,7 +2,8 @@
 
 A tiny battle pass for two: log your calories each day, move one tier up the bar, unlock prizes.
 
-It's a static site (GitHub Pages) that talks to Supabase. There's no build step and no server.
+It's a static site (GitHub Pages) that talks to Supabase. There's no build step. The only server code
+is one Supabase Edge Function, for group photos.
 
 ## Rules
 
@@ -15,8 +16,13 @@ It's a static site (GitHub Pages) that talks to Supabase. There's no build step 
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
 - **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
   to use one (it's saved with the date) or undo one used by mistake.
-- **Plushie Journal (Abbie):** the Journal tab. Each plushie gets a polaroid with its photo and name,
-  in the frame, background, tape and font Abbie picks. It can be bought with a Plushie token.
+- **Abbie's prizes (from 16 Nov 2026):** a Plushie Accessory every 14 days, Merch every 20, a Plushie
+  every 25 and a Group Photo every 50, plus one Group Photo to start. Plushies earned before then are kept.
+- **Plushie Journal (Abbie):** the Journal tab. Each plushie gets a polaroid with its photo, name and
+  what animal it is, in the frame, background, tape and font Abbie picks. It can be bought with a
+  Plushie token.
+- **Group photos:** a Group Photo token turns the plushies into a picture of them all alive together,
+  doing whatever Abbie types ("all camping together"). It goes across the top of the journal.
 - Everyone's calories are shown under each day of their pass, and a 💥 marks what ended the last streak.
 
 ## Setup
@@ -61,6 +67,34 @@ apikey: <the publishable key from config.js>
 
 To change who needs reading, from when, or for how long: `reading` in [passes.js](passes.js).
 
+## The group photo camera
+
+Group photos are drawn by OpenAI's image model (`gpt-image-2.6-sunburst`) from the plushies' photos.
+That needs an OpenAI API key, which lives in Supabase as a secret. It's never in this repo or the website.
+The code is [supabase/functions/group-photo/index.ts](supabase/functions/group-photo/index.ts).
+
+One-time setup:
+
+1. **OpenAI:** at platform.openai.com, create an API key. It's worth setting a monthly budget under
+   Settings > Limits. OpenAI may ask you to verify your organisation before its image models work.
+2. **Add the key to Supabase:** Edge Functions > Secrets. Name `OPENAI_API_KEY`, value the key. Save.
+3. **Add the function:** Edge Functions > Deploy a new function > Via Editor. Name it `group-photo`
+   (exactly), replace the example code with everything in `supabase/functions/group-photo/index.ts`,
+   then Deploy function.
+4. **Let the website call it:** in the function's settings, turn off JWT verification ("Verify JWT" /
+   "Enforce JWT verification"). The function checks the shared code itself.
+5. **Database:** re-run [supabase/schema.sql](supabase/schema.sql) as usual.
+
+How it behaves:
+
+- A picture takes about a minute. The journal shows it "developing" and fills it in when it's done.
+- The token is only used once a picture comes back. If it fails, the journal says why.
+- At most 4 tries a day, so nothing can run up the OpenAI bill.
+- The model, quality and art style are at the top of `index.ts`. After changing them, paste the file into
+  the function again in Supabase and click Deploy updates. On Supabase's free plan a function gets 150
+  seconds, so the quality stays at "high". "xhigh" and "max" need the 400 seconds of a paid plan.
+- If something goes wrong: Supabase > Edge Functions > group-photo > Logs.
+
 ## Installing it as an app
 
 - **Android, or Chrome/Edge on a computer:** open the site, then use the browser menu's "Install app"
@@ -74,7 +108,8 @@ The tables have Row Level Security on with no policies, so the website can't rea
 It can only call the database functions in [supabase/schema.sql](supabase/schema.sql) (`get_state`,
 `submit_log`, `set_hardcore_optin`, `submit_reading`, and the token and journal ones), and all of them
 check the shared code first. Journal photos are shrunk in the browser and kept in the database the
-same way, so there's no separate storage bucket to secure.
+same way, so there's no separate storage bucket to secure. The group-photo function goes through the
+same functions, and the OpenAI key stays in Supabase's secrets.
 The anon key in `config.js` is designed to be public. **Never commit the service_role / secret key.**
 
 ## Running locally

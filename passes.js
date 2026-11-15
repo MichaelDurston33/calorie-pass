@@ -3,6 +3,10 @@
 // Passes are shown on the page in the order they're listed here.
 // One tier = one day of your streak (see rules.js). A prize with `every: 14`
 // unlocks at tiers 14, 28, 42, ...
+// To change how often a prize comes from a given day, without changing what was
+// earned before, list the changes (a prize with no entry yet isn't running):
+//   every: [{ days: 14 }, { from: "2026-11-16", days: 25 }]
+// `gift: 1` starts someone off with one token of that prize.
 // `goal`: during Bee Jim Hardcore Mode, logging more than this resets your streak.
 // To change it from a given day without affecting earlier days, list the changes:
 //   goal: [{ kcal: 1937 }, { from: "2026-10-03", kcal: 1800 }]
@@ -13,6 +17,8 @@
 // use one; it's recorded with the date.
 // `journal`: gives that person a photo journal (see journal.js). Entries can be
 // bought with a token of the `prize` named, and the journal is called `title`.
+// A `groupPrize` token makes a group photo of everything in the journal (see
+// supabase/functions/group-photo).
 
 // Tiers shown on the timeline. When someone reaches the end, it extends by
 // the same amount again (100, then 200, ...).
@@ -43,11 +49,15 @@ export const PASSES = {
       prize: "#ffd43b",
       prizeInk: "#0e4f4e",
     },
+    // From 16 Nov 2026 the Plushie moves to every 25 days and an Accessory takes
+    // its old every-14 spot. Plushies earned before then are kept.
     prizes: [
-      { every: 14, name: "Plushie", icon: "🧸" },
+      { every: [{ from: "2026-11-16", days: 14 }], name: "Plushie Accessory", icon: "🎀" },
       { every: 20, name: "Merch", icon: "👕" },
+      { every: [{ days: 14 }, { from: "2026-11-16", days: 25 }], name: "Plushie", icon: "🧸" },
+      { every: [{ from: "2026-11-16", days: 50 }], name: "Group Photo!", icon: "📸", gift: 1 },
     ],
-    journal: { prize: "Plushie", title: "Plushie Journal" },
+    journal: { prize: "Plushie", groupPrize: "Group Photo!", title: "Plushie Journal" },
   },
 
   Michael: {

@@ -13,7 +13,9 @@
 //   (`reading` in passes.js). Without one, the day counts as missed, even if
 //   calories were logged.
 // - Prizes are earned each time your streak reaches their tier. A reset
-//   doesn't take them away, and climbing back up earns them again.
+//   doesn't take them away, and climbing back up earns them again. If how often
+//   a prize comes changes, each day uses the setting for that day, so prizes
+//   earned before the change are kept.
 //
 // Dates are "YYYY-MM-DD" strings, which compare correctly as plain strings.
 
@@ -42,6 +44,24 @@ export function goalOn(goal, date) {
   let kcal;
   for (const g of goal) if (!g.from || g.from <= date) kcal = g.kcal;
   return kcal;
+}
+
+// How many days apart a prize comes on `date`, or null if it isn't running yet.
+// `every` is a number, or a list of changes, oldest first:
+// [{ days: 14 }, { from: "2026-11-16", days: 25 }].
+export function everyOn(every, date) {
+  if (!Array.isArray(every)) return every;
+  let days = null;
+  for (const e of every) if (!e.from || e.from <= date) days = e.days;
+  return days;
+}
+
+// The prizes that unlock at `tier` when it's reached on `date`.
+export function prizesAt(prizes, tier, date) {
+  return prizes.filter((p) => {
+    const days = everyOn(p.every, date);
+    return days && tier % days === 0;
+  });
 }
 
 // Whether a day needs a reading session, and if so whether it had one.
@@ -75,7 +95,7 @@ export function hardcorePeriodOn(date, periods) {
 //            { date, calories (net of steps), goal } for going over goal in Hardcore,
 //            { date, missed: true } for a day with nothing logged (or, when
 //            reading is needed, no reading session)
-//   earned - how many of each prize have been earned, in the same order as `prizes`
+//   earned - how many of each prize have been earned (plus any gift), in the same order as `prizes`
 //   freezes - streak freezes left
 //   frozen  - the missed days that freezes covered
 export function playStreak(logs, { goal, prizes, periods, today, reading, sessions = [] }) {
@@ -85,7 +105,7 @@ export function playStreak(logs, { goal, prizes, periods, today, reading, sessio
   let run = [];
   let reset = null;
   let last = null;
-  const earned = prizes.map(() => 0);
+  const earned = prizes.map((p) => p.gift ?? 0);
   let freezes = 0;
   const frozen = [];
 
@@ -122,9 +142,7 @@ export function playStreak(logs, { goal, prizes, periods, today, reading, sessio
     }
 
     run.push({ ...log, hardcore });
-    prizes.forEach((p, i) => {
-      if (run.length % p.every === 0) earned[i]++;
-    });
+    for (const p of prizesAt(prizes, run.length, log.date)) earned[prizes.indexOf(p)]++;
     if (run.length % FREEZE_EVERY === 0) freezes++;
   }
 

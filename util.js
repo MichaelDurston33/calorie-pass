@@ -16,6 +16,19 @@ export async function rpc(fn, args) {
   return body;
 }
 
+// Calls one of the Edge Functions in supabase/functions (e.g. group-photo).
+export async function callFunction(name, args) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify(args),
+  });
+  const body = await res.json().catch(() => null);
+  if (res.status === 404) throw new Error("This isn't set up yet (the Edge Function is missing)");
+  if (!res.ok) throw new Error(body?.message || `Request failed (${res.status})`);
+  return body;
+}
+
 // Browser-local date as YYYY-MM-DD.
 export function today() {
   return new Date().toLocaleDateString("en-CA");
