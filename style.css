@@ -878,15 +878,16 @@ button.tile:focus-visible { outline: 3px solid var(--j-ink); outline-offset: 3px
 
 /* ---------- Group photo ---------- */
 
-/* A strip of backdrop paper right across the top of the journal (the whole
-   screen width on a phone), with the landscape polaroid taped on. */
+/* A strip of backdrop paper right across the journal (the whole screen width
+   on a phone), between the title and the plushies, with the landscape
+   polaroid taped on. */
 .j-hero {
-  margin: -20px -16px 20px;
+  margin: 0 -16px 20px;
   padding: 2px 0;
   background-color: var(--bd);
 }
 @media (min-width: 752px) {
-  .j-hero { margin: -24px -24px 24px; border-radius: 20px 20px 0 0; }
+  .j-hero { margin: 0 -24px 24px; }
 }
 .j-hero > .tile.wide { max-width: 640px; margin: 0 auto; }
 .tile.wide { background: none; }
@@ -895,7 +896,7 @@ button.tile:focus-visible { outline: 3px solid var(--j-ink); outline-offset: 3px
   justify-items: center;
   gap: 12px;
   padding: 36px 16px;
-  border-bottom: 2px dashed color-mix(in srgb, var(--j-ink) 25%, transparent);
+  border-block: 2px dashed color-mix(in srgb, var(--j-ink) 25%, transparent);
   background: color-mix(in srgb, var(--j-soft) 70%, var(--j-bg));
   font-family: var(--j-heading-font), system-ui, sans-serif;
   font-size: 1.1rem;

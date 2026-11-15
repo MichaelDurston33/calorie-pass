@@ -89,7 +89,6 @@ function journalHtml(player) {
 
   return `
     <section class="journal">
-      ${groupPrize ? heroHtml(player, group, { mine, canMake, groupToken }) : ""}
       <header class="j-head">
         <div>
           <h2>${escapeHtml(`${token?.prize.icon ?? "📔"} ${player.name}'s ${title}`)}</h2>
@@ -104,12 +103,13 @@ function journalHtml(player) {
             : ""
         }
       </header>
+      ${groupPrize ? heroHtml(player, group, { mine, canMake, groupToken }) : ""}
       <div class="j-grid">${tiles}</div>
     </section>`;
 }
 
-// The group photo across the top: the one being drawn, the one on show, or a
-// space for the first one.
+// The group photo, between the title and the plushies: the one being drawn,
+// the one on show, or a space for the first one.
 function heroHtml(player, group, { mine, canMake, groupToken }) {
   const notice =
     mine && group.failed
