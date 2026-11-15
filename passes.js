@@ -7,9 +7,14 @@
 //
 // What moves a pass on:
 // - A calorie pass (the default) counts each day with calories logged.
-// - `study: { minutes: 25 }` makes it a study pass instead: a day counts once
-//   the e-reader has sent a reading session of at least that many minutes.
-//   Bee Jim Hardcore Mode doesn't apply to study passes.
+// - `study` makes it a study pass instead: a day counts once each tool it
+//   `needs` has sent a session of at least that many minutes that day.
+//     study: { needs: { ereader: 25 } }
+//   To change what's needed from a given day without affecting earlier days,
+//   list the changes:
+//     study: [{ needs: { ereader: 25 } }, { from: "2026-12-01", needs: { ereader: 25, hsk: 25 } }]
+//   The tools are in STUDY_TOOLS below. Bee Jim Hardcore Mode doesn't apply to
+//   study passes.
 // `title` names a pass when someone has several (shown after their name).
 //
 // One tier = one day of the pass's streak (see rules.js). A prize with
@@ -46,6 +51,14 @@ export const FREEZE_EVERY = 15;
 // (lower than the ~0.8 often quoted for brisk walking). At 71 kg that's ~35 kcal/km,
 // and at ~1,400 steps/km that's 0.025 kcal a step, so 10,000 steps = 250 kcal.
 export const KCAL_PER_STEP = 0.025;
+
+// The tools that send timed study sessions, by the name each one sends
+// (see "Study tools" in the README). A new tool also needs adding to
+// submit_study in supabase/schema.sql, which turns away names it doesn't know.
+export const STUDY_TOOLS = {
+  ereader: { name: "e-reader", icon: "📖", done: "Read today", todo: "Not read today" },
+  hsk: { name: "HSK", icon: "📝", done: "HSK done today", todo: "No HSK today" },
+};
 
 export const PASSES = {
   Abbie: [
@@ -97,7 +110,12 @@ export const PASSES = {
       // session on the e-reader, which has been sending them since 11 Nov 2026.
       title: "Chinese",
       emoji: "🏮",
-      study: { minutes: 25 },
+      study: [
+        { needs: { ereader: 25 } },
+        // Once the HSK tool is sending pomodoros, add a line like this, with
+        // the day it starts, to need both every day from then on:
+        // { from: "2026-12-01", needs: { ereader: 25, hsk: 25 } },
+      ],
       // Lantern red and gold
       colors: {
         bg: "#fdf4ee",

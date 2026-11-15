@@ -1,5 +1,5 @@
-import { FREEZE_EVERY, PASSES, TIMELINE_LENGTH } from "./passes.js";
-import { addDays, goalOn, hardcorePeriodOn, netCalories, passDays, playPass, prizesAt, stepKcal, tokensLeft, unlocksAt } from "./rules.js";
+import { FREEZE_EVERY, PASSES, STUDY_TOOLS, TIMELINE_LENGTH } from "./passes.js";
+import { addDays, goalOn, hardcorePeriodOn, netCalories, playPass, prizesAt, stepKcal, studyDays, studyOn, tokensLeft, unlocksAt } from "./rules.js";
 import { $, escapeHtml, fmtDay, rpc, today } from "./util.js";
 import { initJournal, openEditor, openGroupMaker, renderJournal } from "./journal.js";
 
@@ -21,7 +21,7 @@ function storageRemove(key) {
 
 let code = storageGet(CODE_KEY);
 let myId = storageGet(PLAYER_KEY);
-// [{ id, name, logs: [{ date, calories, steps }], reading: [{ date, minutes }],
+// [{ id, name, logs: [{ date, calories, steps }], reading: [{ date, source, minutes }],
 //    spends: [{ id, prize, date }], journal: [{ id, name, species, date, style, spendId }],
 //    groupPhotos: [{ id, status, error, prompt, caption, date, style, spendId, shownAt, createdAt }] }], oldest first
 let players = [];
@@ -235,25 +235,34 @@ function renderPass(player, pass, day) {
     tiers.push(renderTier(t, run[t - 1], streak, prizesAt(pass.prizes, t, dateOf(t)), pass));
   }
 
-  const doneToday = passDays(pass, player).some((d) => d.date === day);
-  const [doneText, notDoneText] = pass.study
-    ? ["📖 Read today", "📖 Not read today"]
-    : ["✓ Logged today", "Not logged today"];
+  // What today still needs: calories logged, or a session from each study tool.
+  let todayChips;
+  if (pass.study) {
+    const sessions = studyDays(player).find((d) => d.date === day)?.sessions ?? {};
+    todayChips = needsOn(pass, day)
+      .map(([tool, minutes]) => {
+        const t = toolInfo(tool);
+        return (sessions[tool] ?? 0) >= minutes
+          ? `<span class="today is-done">${escapeHtml(`${t.icon} ${t.done}`)}</span>`
+          : `<span class="today">${escapeHtml(`${t.icon} ${t.todo}`)}</span>`;
+      })
+      .join(" ");
+  } else {
+    todayChips = player.logs.some((l) => l.date === day)
+      ? `<span class="today is-done">✓ Logged today</span>`
+      : `<span class="today">Not logged today</span>`;
+  }
   const goalToday = goalOn(pass.goal, day);
   const showGoal = goalToday && hardcorePeriodOn(day, hardcore.periods);
 
   return `
-    <section class="pass" style="${escapeHtml(themeStyle(pass.colors))}">
+    <section class="pass${pass.study ? " study" : ""}" style="${escapeHtml(themeStyle(pass.colors))}">
       <header class="pass-head">
         <div class="who">
           ${pass.emoji ? `<span class="avatar" aria-hidden="true">${escapeHtml(pass.emoji)}</span>` : ""}
           <div>
             <h2>${escapeHtml(pass.title ? `${player.name} · ${pass.title}` : player.name)}</h2>
-            ${
-              doneToday
-                ? `<span class="today is-done">${doneText}</span>`
-                : `<span class="today">${notDoneText}</span>`
-            }
+            ${todayChips}
             ${showGoal ? `<span class="goal">Goal ${fmtKcal(goalToday)} kcal</span>` : ""}
           </div>
         </div>
@@ -285,7 +294,7 @@ function renderFreezes(streak, freezes, frozen) {
 }
 
 // `log` is the day that earned this tier, if it's been earned: calories logged
-// on a calorie pass, or a reading session on a study pass.
+// on a calorie pass, or that day's study sessions on a study pass.
 // `rewards` are the prizes that unlock at this tier.
 function renderTier(t, log, streak, rewards, pass) {
   const earned = t <= streak;
@@ -294,7 +303,7 @@ function renderTier(t, log, streak, rewards, pass) {
     .join(" ");
   const title = [
     `Tier ${t}`,
-    log && `${fmtDay(log.date)}: ${pass.study ? `${log.minutes} min reading` : describeDay(log)}${log.hardcore ? " (Hardcore)" : ""}`,
+    log && `${fmtDay(log.date)}: ${pass.study ? describeStudy(log, pass) : describeDay(log)}${log.hardcore ? " (Hardcore)" : ""}`,
     rewards.length && rewards.map((r) => r.name).join(" + "),
   ]
     .filter(Boolean)
@@ -325,7 +334,7 @@ function renderTier(t, log, streak, rewards, pass) {
     <li class="${cls}" title="${escapeHtml(title)}">
       <span class="tier-num">${t}</span>
       <span class="rail"><span class="node"></span></span>
-      ${renderEntry(log && (pass.study ? `${log.minutes} min` : fmtKcal(log.calories)), log?.date, log?.steps)}
+      ${log ? renderEntry(...(pass.study ? studyEntry(log, pass) : calorieEntry(log)), log.date) : renderEntry()}
       ${cards}
     </li>`;
 }
@@ -336,7 +345,7 @@ function renderReset(reset, pass) {
   if (!reset.missed) {
     title = `Streak reset: ${fmtKcal(reset.calories)} kcal net on ${fmtDay(reset.date)}, over the ${fmtKcal(reset.goal)} kcal Hardcore goal`;
   } else if (pass.study) {
-    title = `Streak reset: no ${pass.study.minutes}-minute reading session on ${fmtDay(reset.date)}`;
+    title = `Streak reset: ${fmtDay(reset.date)} didn't have ${describeNeeds(needsOn(pass, reset.date))}`;
   } else {
     title = `Streak reset: nothing logged on ${fmtDay(reset.date)}`;
   }
@@ -344,7 +353,7 @@ function renderReset(reset, pass) {
     <li class="tier reset" title="${escapeHtml(title)}">
       <span class="tier-num">0</span>
       <span class="rail"><span class="node">💥</span></span>
-      ${renderEntry(reset.missed ? "Missed" : fmtKcal(reset.calories), reset.date)}
+      ${renderEntry(reset.missed ? "Missed" : fmtKcal(reset.calories), "", reset.date)}
     </li>`;
 }
 
@@ -355,13 +364,48 @@ function describeDay(log) {
   return `${fmtKcal(log.calories)} kcal − ${fmtKcal(burned)} kcal from ${fmtKcal(log.steps)} steps = ${fmtKcal(log.calories - burned)} kcal net`;
 }
 
-// Calories, steps and date under a tier. Always there (empty for tiers still to come)
-// so prize cards line up.
-function renderEntry(text, date, steps) {
+// The two lines under a calorie tier: "1,850" and, if steps were logged, "👟 −200".
+function calorieEntry(log) {
+  return [fmtKcal(log.calories), log.steps ? `👟 −${fmtKcal(stepKcal(log.steps))}` : ""];
+}
+
+// What a study pass needed on `date`, as [tool, minutes] pairs.
+function needsOn(pass, date) {
+  return Object.entries(studyOn(pass.study, date) ?? {});
+}
+
+// How a study tool is shown (STUDY_TOOLS in passes.js). Unknown ones still show, plainly.
+function toolInfo(tool) {
+  return STUDY_TOOLS[tool] ?? { name: tool, icon: "⏱️", done: `${tool} done today`, todo: `No ${tool} today` };
+}
+
+// The lines under a study tier: "25 min", or "📖 25" and "📝 25" when the day needed several tools.
+function studyEntry(log, pass) {
+  const needs = needsOn(pass, log.date);
+  if (needs.length === 1) return [`${log.sessions[needs[0][0]]} min`, ""];
+  const lines = needs.map(([tool]) => `${toolInfo(tool).icon} ${log.sessions[tool]}`);
+  return [lines[0], lines.slice(1).join(" ")];
+}
+
+// "25 min e-reader + 25 min HSK"
+function describeStudy(log, pass) {
+  return needsOn(pass, log.date)
+    .map(([tool]) => `${log.sessions[tool]} min ${toolInfo(tool).name}`)
+    .join(" + ");
+}
+
+// "a 25-minute e-reader session and a 25-minute HSK session"
+function describeNeeds(needs) {
+  return needs.map(([tool, minutes]) => `a ${minutes}-minute ${toolInfo(tool).name} session`).join(" and ");
+}
+
+// The lines under a tier (calories and steps, or minutes studied) and its date.
+// Always there (empty for tiers still to come) so prize cards line up.
+function renderEntry(text = "", extra = "", date = "") {
   return `
     <span class="entry">
-      <span class="kcal">${text ? escapeHtml(text) : ""}</span>
-      <span class="steps">${steps ? `👟 −${fmtKcal(stepKcal(steps))}` : ""}</span>
+      <span class="kcal">${escapeHtml(text)}</span>
+      <span class="entry-extra">${escapeHtml(extra)}</span>
       <span class="day">${date ? escapeHtml(fmtDay(date)) : ""}</span>
     </span>`;
 }

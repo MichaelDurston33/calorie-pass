@@ -39,8 +39,9 @@ create table if not exists hardcore_periods (
   end_date date not null
 );
 
--- Reading sessions finished on the e-reader (its 25-minute timer). Some
--- players need one each day for the day to count (see passes.js).
+-- Timed study sessions, e.g. the e-reader's 25-minute reading timer or an HSK
+-- pomodoro. They move study passes on (see `study` in passes.js). It's called
+-- reading_sessions because the e-reader came first.
 create table if not exists reading_sessions (
   id bigserial primary key,
   player_id int not null references players(id) on delete cascade,
@@ -48,6 +49,11 @@ create table if not exists reading_sessions (
   minutes int not null check (minutes between 1 and 600),
   created_at timestamptz not null default now()
 );
+
+-- Added later: which tool sent the session (STUDY_TOOLS in passes.js). Every
+-- session from before then came from the e-reader.
+alter table reading_sessions add column if not exists source text not null default 'ereader'
+  check (length(source) between 1 and 20);
 
 -- Prize tokens that have been used, e.g. Abbie's Plushie token. Tokens are
 -- earned on the pass (the page works them out, see passes.js); this records
@@ -153,15 +159,16 @@ begin
           from calorie_logs l
           where l.player_id = p.id
         ),
-        -- One entry per day, with that day's longest session.
+        -- Study sessions: one entry per day per tool, with that day's longest
+        -- session from it.
         'reading', (
-          select coalesce(json_agg(json_build_object('date', r.session_date, 'minutes', r.minutes)
-                                   order by r.session_date), '[]'::json)
+          select coalesce(json_agg(json_build_object('date', r.session_date, 'source', r.source, 'minutes', r.minutes)
+                                   order by r.session_date, r.source), '[]'::json)
           from (
-            select session_date, max(minutes) as minutes
+            select session_date, source, max(minutes) as minutes
             from reading_sessions
             where player_id = p.id
-            group by session_date
+            group by session_date, source
           ) r
         ),
         'spends', (
@@ -242,7 +249,7 @@ $$;
 
 -- Called by the e-reader when its reading timer finishes. p_date is the
 -- e-reader's own local date. Returns how many minutes that day's longest
--- session was, so the e-reader can show it was saved.
+-- e-reader session was, so the e-reader can show it was saved.
 create or replace function submit_reading(p_code text, p_player_id int, p_date date, p_minutes int default 25)
 returns json
 language plpgsql
@@ -259,13 +266,51 @@ begin
     raise exception 'Unknown player';
   end if;
 
-  insert into reading_sessions (player_id, session_date, minutes)
-  values (p_player_id, p_date, p_minutes);
+  insert into reading_sessions (player_id, session_date, minutes, source)
+  values (p_player_id, p_date, p_minutes, 'ereader');
 
   return json_build_object(
     'date', p_date,
     'minutes', (select max(minutes) from reading_sessions
-                where player_id = p_player_id and session_date = p_date)
+                where player_id = p_player_id and session_date = p_date and source = 'ereader')
+  );
+end;
+$$;
+
+-- Called by any other study tool when its timer finishes, e.g. the HSK app's
+-- pomodoro. p_source is the tool's name, one of the list below (the names in
+-- STUDY_TOOLS in passes.js). A misspelt name is turned away, so a tool can't
+-- quietly send sessions that never count. p_date is the tool's own local date.
+-- Returns that day's longest session from that tool, so it can show it was saved.
+create or replace function submit_study(p_code text, p_player_id int, p_source text, p_date date, p_minutes int default 25)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_source text := lower(trim(p_source));
+begin
+  perform check_code(p_code);
+
+  if v_source is null or v_source not in ('ereader', 'hsk') then
+    raise exception 'Unknown study tool: %', coalesce(p_source, '(none given)');
+  end if;
+  if p_date not between current_date - 1 and current_date + 1 then
+    raise exception 'Date out of range';
+  end if;
+  if not exists (select 1 from players where id = p_player_id) then
+    raise exception 'Unknown player';
+  end if;
+
+  insert into reading_sessions (player_id, session_date, minutes, source)
+  values (p_player_id, p_date, p_minutes, v_source);
+
+  return json_build_object(
+    'date', p_date,
+    'source', v_source,
+    'minutes', (select max(minutes) from reading_sessions
+                where player_id = p_player_id and session_date = p_date and source = v_source)
   );
 end;
 $$;
@@ -602,6 +647,7 @@ grant execute on function get_state(text) to anon;
 grant execute on function submit_log(text, int, int, date, int) to anon;
 grant execute on function set_hardcore_optin(text, int, boolean, date) to anon;
 grant execute on function submit_reading(text, int, date, int) to anon;
+grant execute on function submit_study(text, int, text, date, int) to anon;
 grant execute on function spend_token(text, int, text, date) to anon;
 grant execute on function unspend_token(text, int, bigint) to anon;
 grant execute on function save_journal_entry(text, int, bigint, text, date, text, jsonb, bigint, text, text) to anon;

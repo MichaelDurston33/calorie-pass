@@ -56,7 +56,10 @@ A player can have several passes (Michael has a calorie pass and a Chinese study
 
 What counts as a day depends on the pass (`passDays`):
 - **A calorie pass** counts each day with a calorie log. Hardcore Mode applies only to calorie passes.
-- **A study pass** (`study` in `passes.js`) counts each day with a reading session of at least `study.minutes`.
+- **A study pass** (`study` in `passes.js`) counts each day on which every tool in `needs` sent a long enough
+  session (`studyOn`, `studied`). `needs` is a dated list, like `goal`. Sessions live in `reading_sessions`
+  with a `source` (the tool's name). Rows from before that column existed are the e-reader's, and the client
+  treats a missing `source` as `ereader` too.
 
 Tokens are worked out as:
 - **tokens left** = earned (from `playStreak`, including any `gift`) − rows in `token_spends` with that prize's
@@ -81,6 +84,7 @@ Consequences:
 - `passes.js`: each player's list of passes, keyed by the player's `name`, which must match the `players` table.
   A player's first pass supplies their emoji and colours elsewhere (picker, "Logging as"). Its header comment
   documents every option: colours, `title`, `goal`, `study`, `prizes` (`every`, `first`, `gift`) and `journal`.
+  `STUDY_TOOLS` there names the study tools and how each is shown.
 - `journal-palette.js`: the journal's design tokens: frames, backdrops, tapes, fonts, page colours, and the
   default styles for entries and group photos. Each entry's `style` jsonb stores only these ids.
   `resolveStyle()` falls back to the defaults for unknown ids.
@@ -114,6 +118,9 @@ Not everything goes through this site, so keep these signatures stable or update
   (Fly.io), which overwrites the calories with Yazio's figure.
 - `submit_reading`: called by Michael's e-reader when a 25-minute session finishes. It feeds his Chinese study
   pass. The request format is in the README.
+- `submit_study`: the same thing for every other study tool, named in `p_source` (`hsk` for Michael's HSK
+  pomodoro tool, which is still being built). It only accepts names in its list, which must match
+  `STUDY_TOOLS` in `passes.js`.
 
 ### Two views, two modules
 

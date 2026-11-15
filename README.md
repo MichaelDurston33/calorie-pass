@@ -12,9 +12,10 @@ is one Supabase Edge Function, for group photos.
 - **Bee Jim Hardcore Mode:** once you've both opted in, it's on for 7 days, starting that day.
   Logging more than your goal during it also sends your streak back to 0. It only affects calorie passes.
 - **Michael's Chinese pass:** a second pass, separate from his calories. A day counts once the e-reader has
-  sent a finished 25-minute reading session (sessions since 11 Nov 2026 count). Its prizes: £100 at day 7 of a
-  streak, then another £100 every 14 days after that (days 21, 35, 49, ...), and a trip to China at day 100.
-  It has its own streak freezes too.
+  sent a finished 25-minute reading session (sessions since 11 Nov 2026 count). Once the HSK tool is sending
+  pomodoros, each day will need a 25-minute HSK pomodoro as well, from a start date set in passes.js (days
+  before it don't change). Its prizes: £100 at day 7 of a streak, then another £100 every 14 days after that
+  (days 21, 35, 49, ...), and a trip to China at day 100. It has its own streak freezes too.
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
 - **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
   to use one (it's saved with the date) or undo one used by mistake.
@@ -25,8 +26,8 @@ is one Supabase Edge Function, for group photos.
   Plushie token.
 - **Group photos:** a Group Photo token turns the plushies into a picture of them all alive together,
   doing whatever Abbie types ("all camping together"). It goes across the top of the journal.
-- Everyone's calories (or minutes read, on the Chinese pass) are shown under each day of their pass, and a 💥
-  marks what ended the last streak.
+- Everyone's calories (or minutes studied, on the Chinese pass) are shown under each day of their pass, and a
+  💥 marks what ended the last streak.
 
 ## Setup
 
@@ -50,7 +51,11 @@ is one Supabase Edge Function, for group photos.
 - The logo: replace [static/logo.png](static/logo.png), then remake the tab and app icons with
   `powershell -ExecutionPolicy Bypass -File tools\make-icons.ps1`
 
-## The e-reader
+## Study tools
+
+Michael's Chinese pass is moved on by timed sessions that his study tools send when their timer finishes.
+
+### The e-reader
 
 When its 25-minute timer finishes, the e-reader sends one request:
 
@@ -68,8 +73,29 @@ apikey: <the publishable key from config.js>
   failed and is worth retrying; a wrong code gives `{ "message": "Invalid code" }`.
 - Sending twice is harmless: it just records another session.
 
-Each session counts towards Michael's Chinese pass. To change how many minutes a day needs: `study` in
-[passes.js](passes.js).
+### HSK, and any other tool
+
+Every other tool sends the same kind of request to `submit_study`, with its name in `p_source`:
+
+```
+POST https://trgjhvsfeoidurgmrhai.supabase.co/rest/v1/rpc/submit_study
+Content-Type: application/json
+apikey: <the publishable key from config.js>
+
+{ "p_code": "<the shared code>", "p_player_id": 1, "p_source": "hsk", "p_date": "2026-11-11", "p_minutes": 25 }
+```
+
+- `p_source` is the tool's name. Today only `hsk` (and `ereader`) are accepted. Any other name gives
+  `{ "message": "Unknown study tool: ..." }`, so a typo can't quietly send sessions that never count.
+- `p_date`, `p_minutes`, sending twice and the errors all work as they do for the e-reader.
+- Success is HTTP 200 with `{ "date": ..., "source": "hsk", "minutes": ... }` (that day's longest session
+  from that tool).
+
+**What a day needs** is `study` in [passes.js](passes.js). Right now it's the e-reader only. When the HSK tool
+is working, add the line that's waiting there, with the day it starts, so each day from then needs both.
+
+**Adding another tool** (e.g. Anki): add its name to `STUDY_TOOLS` in [passes.js](passes.js) and to the list in
+`submit_study` in [supabase/schema.sql](supabase/schema.sql), then re-run schema.sql.
 
 ## The group photo camera
 
@@ -110,7 +136,7 @@ How it behaves:
 
 The tables have Row Level Security on with no policies, so the website can't read or write them directly.
 It can only call the database functions in [supabase/schema.sql](supabase/schema.sql) (`get_state`,
-`submit_log`, `set_hardcore_optin`, `submit_reading`, and the token and journal ones), and all of them
+`submit_log`, `set_hardcore_optin`, `submit_reading`, `submit_study`, and the token and journal ones), and all of them
 check the shared code first. Journal photos are shrunk in the browser and kept in the database the
 same way, so there's no separate storage bucket to secure. The group-photo function goes through the
 same functions, and the OpenAI key stays in Supabase's secrets.
