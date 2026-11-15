@@ -129,7 +129,9 @@ Not everything goes through this site, so keep these signatures stable or update
   `tokensFor`, `apply`, `refresh`, …), so the journal doesn't import app state.
 - The view is chosen by the URL hash (`#journal`), and the tab only appears if some pass has `journal`.
 - The Hardcore bee/zombie frame (`body.hardcore`) is deliberately hidden on the journal view.
-- Per-pass colours are applied as CSS variables from `pass.colors` (`themeStyle`). The journal page's colours
+- Each player is one card (`renderCard`), in their first pass's colours, with one timeline (`.lane`) per pass.
+  Colours are CSS variables from `pass.colors` (`themeStyle`); a later pass sets them on its own lane, so it
+  leaves out `bg` and `border` to match the card. The journal page's colours
   are `--j-*` variables taken from `PAGE`.
 
 ### Photos are text in Postgres

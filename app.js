@@ -129,9 +129,7 @@ function showMain(me) {
 }
 
 function renderPasses(day) {
-  $("passes").innerHTML = inPassOrder(players)
-    .flatMap((p) => passesFor(p).map((pass) => renderPass(p, pass, day)))
-    .join("");
+  $("passes").innerHTML = inPassOrder(players).map((p) => renderCard(p, day)).join("");
 
   // Start each timeline centred on the next tier to earn.
   for (const timeline of document.querySelectorAll(".timeline")) {
@@ -212,7 +210,21 @@ function tokensFor(player, day = today()) {
   });
 }
 
-function renderPass(player, pass, day) {
+// One card per person, in their first pass's colours, with a timeline for
+// each of their passes. A later pass's colours only change its own timeline.
+function renderCard(player, day) {
+  const [main, ...others] = passesFor(player);
+  return `
+    <section class="pass" style="${escapeHtml(themeStyle(main.colors))}">
+      ${renderPass(player, main, day, true)}
+      ${others.map((pass) => renderPass(player, pass, day, false)).join("")}
+    </section>`;
+}
+
+// One pass's timeline, with its streak, today's progress and tokens. The first
+// is headed with the person's avatar and name, later ones with their own
+// emoji and title (e.g. "📚 Chinese").
+function renderPass(player, pass, day, first) {
   const { run, reset, freezes, frozen } = streakFor(player, pass, day);
   const streak = run.length;
   // The day each tier was (or would be) reached, if the streak keeps going. A
@@ -254,18 +266,19 @@ function renderPass(player, pass, day) {
   }
   const goalToday = goalOn(pass.goal, day);
   const showGoal = goalToday && hardcorePeriodOn(day, hardcore.periods);
+  const status = `${todayChips}${showGoal ? ` <span class="goal">Goal ${fmtKcal(goalToday)} kcal</span>` : ""}`;
+
+  const heading = first
+    ? `<div class="who">
+         ${pass.emoji ? `<span class="avatar" aria-hidden="true">${escapeHtml(pass.emoji)}</span>` : ""}
+         <div><h2>${escapeHtml(player.name)}</h2>${status}</div>
+       </div>`
+    : `<div><h3>${escapeHtml([pass.emoji, pass.title].filter(Boolean).join(" "))}</h3>${status}</div>`;
 
   return `
-    <section class="pass${pass.study ? " study" : ""}" style="${escapeHtml(themeStyle(pass.colors))}">
+    <div class="lane${pass.study ? " study" : ""}"${first ? "" : ` style="${escapeHtml(themeStyle(pass.colors))}"`}>
       <header class="pass-head">
-        <div class="who">
-          ${pass.emoji ? `<span class="avatar" aria-hidden="true">${escapeHtml(pass.emoji)}</span>` : ""}
-          <div>
-            <h2>${escapeHtml(pass.title ? `${player.name} · ${pass.title}` : player.name)}</h2>
-            ${todayChips}
-            ${showGoal ? `<span class="goal">Goal ${fmtKcal(goalToday)} kcal</span>` : ""}
-          </div>
-        </div>
+        ${heading}
         <div class="tier-big">
           <span>Streak</span><strong>${streak}</strong>
           ${renderFreezes(streak, freezes, frozen)}
@@ -277,7 +290,7 @@ function renderPass(player, pass, day) {
         <button class="scroll-btn" type="button" data-dir="1" aria-label="Scroll forward">›</button>
       </div>
       ${renderFooter(streak, pass.prizes, upcoming, tokensFor(player, day).filter((t) => t.pass === pass), isMe(player))}
-    </section>`;
+    </div>`;
 }
 
 // "❄️ 2" under the streak, with when the next one comes and the last day one covered.
@@ -452,9 +465,9 @@ let tokenPrize = null; // the prize whose sheet is open
 function openTokenSheet(prizeName) {
   tokenPrize = prizeName;
   const me = players.find((p) => isMe(p));
-  // In the colours of the pass the prize is on.
+  // In the colours of the timeline the prize is on.
   const token = tokensFor(me).find((t) => t.prize.name === prizeName);
-  $("token-dialog").setAttribute("style", themeStyle(token?.pass.colors));
+  $("token-dialog").setAttribute("style", themeStyle({ ...mainPass(me).colors, ...token?.pass.colors }));
   renderTokenSheet();
   $("token-dialog").showModal();
 }

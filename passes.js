@@ -1,9 +1,11 @@
 // Each person's battle passes: colours and prizes.
 // Names must match the players table in Supabase exactly.
 // Someone can have more than one pass, each with its own streak and prizes.
-// Passes are shown on the page in the order they're listed here. A person's
-// first pass gives them their emoji and colours elsewhere (e.g. the "Who's
-// using this device?" buttons).
+// Each person gets one card on the page (in the order they're listed here),
+// with a timeline for each of their passes. The card, and everything else
+// about that person (e.g. the "Who's using this device?" buttons), uses their
+// first pass's emoji and colours. A later pass's `colors` only change its own
+// timeline: leave out bg and border so it matches the card.
 //
 // What moves a pass on:
 // - A calorie pass (the default) counts each day with calories logged.
@@ -15,7 +17,7 @@
 //     study: [{ needs: { ereader: 25 } }, { from: "2026-12-01", needs: { ereader: 25, hsk: 25 } }]
 //   The tools are in STUDY_TOOLS below. Bee Jim Hardcore Mode doesn't apply to
 //   study passes.
-// `title` names a pass when someone has several (shown after their name).
+// `title` names a later pass, shown with its `emoji` above its timeline.
 //
 // One tier = one day of the pass's streak (see rules.js). A prize with
 // `every: 14` unlocks at tiers 14, 28, 42, ...
@@ -109,23 +111,20 @@ export const PASSES = {
       // Chinese study, separate from calories. For now that's a 25-minute
       // session on the e-reader, which has been sending them since 11 Nov 2026.
       title: "Chinese",
-      emoji: "🏮",
+      emoji: "📚",
       study: [
         { needs: { ereader: 25 } },
         // Once the HSK tool is sending pomodoros, add a line like this, with
         // the day it starts, to need both every day from then on:
         // { from: "2026-12-01", needs: { ereader: 25, hsk: 25 } },
       ],
-      // Lantern red and gold
+      // Dusty indigo, to sit beside the Drampa teal on the same beige card
       colors: {
-        bg: "#fdf4ee",
-        border: "#f1d5c6",
-        ink: "#9b1c1c",
-        track: "#efd3c3",
-        line: "#c8333a",
-        node: "#c8333a",
-        prize: "#f2b630",
-        prizeInk: "#7a1414",
+        ink: "#33466b",
+        line: "#5b6f9e",
+        node: "#5b6f9e",
+        prize: "#4a5d8a",
+        prizeInk: "#f4efe1",
       },
       // £100 at day 7 of a streak, then another every 14 days after that
       // (21, 35, 49, ...). A trip to China at day 100.
