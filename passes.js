@@ -80,11 +80,13 @@ export const PASSES = {
       },
       // From 16 Nov 2026 the Plushie moves to every 25 days and an Accessory takes
       // its old every-14 spot. Plushies earned before then are kept.
+      // Three Group Photos are gifts: two to start, and one more (17 Nov 2026)
+      // to retry the first in the new pastel art style.
       prizes: [
         { every: [{ from: "2026-11-16", days: 14 }], name: "Plushie Accessory", icon: "🎀" },
         { every: 20, name: "Merch", icon: "👕" },
         { every: [{ days: 14 }, { from: "2026-11-16", days: 25 }], name: "Plushie", icon: "🧸" },
-        { every: [{ from: "2026-11-16", days: 50 }], name: "Group Photo!", icon: "📸", gift: 2 },
+        { every: [{ from: "2026-11-16", days: 50 }], name: "Group Photo!", icon: "📸", gift: 3 },
       ],
       journal: { prize: "Plushie", groupPrize: "Group Photo!", title: "Plushie Journal" },
     },

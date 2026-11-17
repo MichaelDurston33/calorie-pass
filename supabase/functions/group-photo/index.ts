@@ -22,11 +22,23 @@ const SIZE = "1536x1024"; // landscape, 3:2
 const TIME_LIMIT_MS = 140_000; // give up just before Supabase would stop us
 const MAX_PLUSHIES = 16;
 
+// Neopets, which Abbie loves, but in the soft look of its Pastel pets and the
+// journal's own colours (the frame names in journal-palette.js), so the picture
+// sits calmly on the page. The first try asked for glossy, saturated Neopets
+// colours and a detailed background, and came out too bright and busy.
 const STYLE = [
-  "Neopets-style art: the glossy, colourful look of early-2000s virtual pet game illustrations.",
-  "Clean bold outlines, smooth cel shading with soft gradients and shiny highlights,",
-  "big sparkly expressive eyes, cute rounded proportions, cheerful saturated colours,",
-  "and a detailed painted background.",
+  "Neopets-style art in the soft look of Neopets' Pastel pets: the cute, rounded characters",
+  "and big, friendly, expressive eyes of early-2000s Neopets illustrations, in gentle pastel colours.",
+  "A pastel palette: cream, strawberry-milk pink, peach, butter yellow, pistachio green, mint,",
+  "baby blue and lavender, kept light and slightly muted.",
+  "The characters keep their own colours and markings from their photos, just softened into",
+  "pastel versions (a brown patch becomes a soft cocoa brown).",
+  "Matte colouring with simple, soft shading: no gloss or shiny highlights.",
+  "Thin outlines in a darker shade of each colour rather than black.",
+  "Gentle, even light with low contrast and no dark areas.",
+  "A simple, uncluttered background: a few large, soft shapes that set the scene,",
+  "with calm space around the characters so they stand out.",
+  "No sparkles, glitter, glowing lights or busy patterns.",
 ].join(" ");
 
 // ---------- The function ----------
@@ -135,8 +147,12 @@ export function buildPrompt(plushies: Plushie[], scene: string) {
     "",
     `Art style: ${STYLE}`,
     "",
-    "A wide landscape picture. Every character fully in view, none cut off or hidden, looking happy and interacting " +
-      "with each other. No text, letters, names, logos or watermarks.",
+    // "Interacting with each other" only makes sense when there's more than one.
+    plushies.length > 1
+      ? "A wide landscape picture. Every character fully in view, none cut off or hidden, looking happy and " +
+        "interacting with each other. No text, letters, names, logos or watermarks."
+      : "A wide landscape picture. The character fully in view, not cut off or hidden, and looking happy. " +
+        "No text, letters, names, logos or watermarks.",
   ].join("\n");
 }
 
