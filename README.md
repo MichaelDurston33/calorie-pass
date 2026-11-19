@@ -12,11 +12,10 @@ is one Supabase Edge Function, for group photos.
 - **Bee Jim Hardcore Mode:** once you've both opted in, it's on for 7 days, starting that day.
   Logging more than your goal during it also sends your streak back to 0. It only affects calorie passes.
 - **Michael's Chinese pass:** a second timeline on Michael's card (📚 Chinese), with its own streak, separate
-  from his calories. A day counts once the e-reader has
-  sent a finished 25-minute reading session (sessions since 11 Nov 2026 count). Once the HSK tool is sending
-  pomodoros, each day will need a 25-minute HSK pomodoro as well, from a start date set in passes.js (days
-  before it don't change). Its prizes: £100 at day 7 of a streak, then another £100 every 14 days after that
-  (days 21, 35, 49, ...), and a trip to China at day 100. It has its own streak freezes too.
+  from his calories. From 20 Nov 2026 a day counts once he's finished both a 25-minute reading session on
+  the e-reader and a 25-minute HSK pomodoro. Before then, the e-reader session alone counted (from 11 Nov).
+  Its prizes: £100 at day 7 of a streak, then another £100 every 14 days after that (days 21, 35, 49, ...),
+  and a trip to China at day 100. It has its own streak freezes too.
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
 - **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
   to use one (it's saved with the date) or undo one used by mistake.
@@ -92,8 +91,9 @@ apikey: <the publishable key from config.js>
 - Success is HTTP 200 with `{ "date": ..., "source": "hsk", "minutes": ... }` (that day's longest session
   from that tool).
 
-**What a day needs** is `study` in [passes.js](passes.js). Right now it's the e-reader only. When the HSK tool
-is working, add the line that's waiting there, with the day it starts, so each day from then needs both.
+**What a day needs** is `study` in [passes.js](passes.js): from 20 Nov 2026, both an e-reader session and an
+HSK pomodoro of 25 minutes. To change it, add a new dated line there rather than editing an old one, so
+earlier days keep counting as they did.
 
 **Adding another tool** (e.g. Anki): add its name to `STUDY_TOOLS` in [passes.js](passes.js) and to the list in
 `submit_study` in [supabase/schema.sql](supabase/schema.sql), then re-run schema.sql.

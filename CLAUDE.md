@@ -118,9 +118,9 @@ Not everything goes through this site, so keep these signatures stable or update
   (Fly.io), which overwrites the calories with Yazio's figure.
 - `submit_reading`: called by Michael's e-reader when a 25-minute session finishes. It feeds his Chinese study
   pass. The request format is in the README.
-- `submit_study`: the same thing for every other study tool, named in `p_source` (`hsk` for Michael's HSK
-  pomodoro tool, which is still being built). It only accepts names in its list, which must match
-  `STUDY_TOOLS` in `passes.js`.
+- `submit_study`: the same thing for every other study tool, named in `p_source` (`hsk` for Michael's HSK Book
+  pomodoro). From 20 Nov 2026 his Chinese pass needs both an e-reader and an HSK session each day. It only
+  accepts names in its list, which must match `STUDY_TOOLS` in `passes.js`.
 
 ### Two views, two modules
 

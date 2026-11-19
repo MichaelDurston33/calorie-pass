@@ -110,15 +110,14 @@ export const PASSES = {
       prizes: [{ every: 20, name: "Takeaway", icon: "🥡" }],
     },
     {
-      // Chinese study, separate from calories. For now that's a 25-minute
-      // session on the e-reader, which has been sending them since 11 Nov 2026.
+      // Chinese study, separate from calories. The e-reader has sent 25-minute
+      // reading sessions since 11 Nov 2026, and those alone counted until 20 Nov.
+      // From then, each day needs a 25-minute HSK pomodoro as well.
       title: "Chinese",
       emoji: "📚",
       study: [
         { needs: { ereader: 25 } },
-        // Once the HSK tool is sending pomodoros, add a line like this, with
-        // the day it starts, to need both every day from then on:
-        // { from: "2026-12-01", needs: { ereader: 25, hsk: 25 } },
+        { from: "2026-11-20", needs: { ereader: 25, hsk: 25 } },
       ],
       // Dusty indigo, to sit beside the Drampa teal on the same beige card
       colors: {
