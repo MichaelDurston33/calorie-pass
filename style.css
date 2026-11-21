@@ -192,6 +192,8 @@ button:disabled { opacity: 0.6; }
 
 .today { font-size: 0.8rem; color: var(--muted); }
 .today.is-done { color: var(--pass-ink); font-weight: 600; }
+/* The pomodoro bank sits on its own line under today's progress. */
+.today.bank { display: block; }
 
 .goal {
   display: inline-block;

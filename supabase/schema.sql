@@ -159,17 +159,13 @@ begin
           from calorie_logs l
           where l.player_id = p.id
         ),
-        -- Study sessions: one entry per day per tool, with that day's longest
-        -- session from it.
+        -- Every study session, so the page can count pomodoros for the
+        -- pomodoro bank (see passes.js).
         'reading', (
           select coalesce(json_agg(json_build_object('date', r.session_date, 'source', r.source, 'minutes', r.minutes)
-                                   order by r.session_date, r.source), '[]'::json)
-          from (
-            select session_date, source, max(minutes) as minutes
-            from reading_sessions
-            where player_id = p.id
-            group by session_date, source
-          ) r
+                                   order by r.session_date, r.source, r.id), '[]'::json)
+          from reading_sessions r
+          where r.player_id = p.id
         ),
         'spends', (
           select coalesce(json_agg(json_build_object('id', s.id, 'prize', s.prize, 'date', s.spent_on)
@@ -266,8 +262,16 @@ begin
     raise exception 'Unknown player';
   end if;
 
-  insert into reading_sessions (player_id, session_date, minutes, source)
-  values (p_player_id, p_date, p_minutes, 'ereader');
+  -- Extra pomodoros go in the pomodoro bank, so a resent session mustn't count
+  -- twice. A tool retrying after an unclear failure sends the same session
+  -- again within minutes, but two real pomodoros finish at least 25 minutes
+  -- apart, so the same length again within 20 minutes is treated as a resend.
+  if not exists (select 1 from reading_sessions
+                 where player_id = p_player_id and source = 'ereader' and minutes = p_minutes
+                   and created_at > now() - interval '20 minutes') then
+    insert into reading_sessions (player_id, session_date, minutes, source)
+    values (p_player_id, p_date, p_minutes, 'ereader');
+  end if;
 
   return json_build_object(
     'date', p_date,
@@ -303,8 +307,13 @@ begin
     raise exception 'Unknown player';
   end if;
 
-  insert into reading_sessions (player_id, session_date, minutes, source)
-  values (p_player_id, p_date, p_minutes, v_source);
+  -- A resend within 20 minutes isn't a new pomodoro (see submit_reading).
+  if not exists (select 1 from reading_sessions
+                 where player_id = p_player_id and source = v_source and minutes = p_minutes
+                   and created_at > now() - interval '20 minutes') then
+    insert into reading_sessions (player_id, session_date, minutes, source)
+    values (p_player_id, p_date, p_minutes, v_source);
+  end if;
 
   return json_build_object(
     'date', p_date,
@@ -673,6 +682,17 @@ on conflict (key) do nothing;
 -- Mochi, Abbie's first plushie, is a goat (the photo doesn't make that obvious).
 -- Only fills it in if it's blank, so it never undoes a change made in the app.
 update journal_entries set species = 'goat' where name = 'Mochi' and species is null;
+
+-- Michael read on 20 Nov 2026 but forgot to start the e-reader's timer, so its
+-- 25-minute session is added by hand. Only added if that day has no e-reader
+-- session of 25 minutes or more, so re-running this never adds a second.
+insert into reading_sessions (player_id, session_date, minutes, source)
+select p.id, date '2026-11-20', 25, 'ereader'
+from players p
+where p.name = 'Michael'
+  and not exists (select 1 from reading_sessions r
+                  where r.player_id = p.id and r.session_date = date '2026-11-20'
+                    and r.source = 'ereader' and r.minutes >= 25);
 
 -- To set your real shared code, run:
 --   update settings set value = 'your-secret-code' where key = 'access_code';

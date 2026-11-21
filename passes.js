@@ -17,6 +17,11 @@
 //     study: [{ needs: { ereader: 25 } }, { from: "2026-12-01", needs: { ereader: 25, hsk: 25 } }]
 //   The tools are in STUDY_TOOLS below. Bee Jim Hardcore Mode doesn't apply to
 //   study passes.
+// - `bank: { from: "2026-11-21" }` gives a study pass a pomodoro bank from that
+//   day: each pomodoro beyond the one a tool needs that day is saved, and a
+//   later day missing that tool's pomodoro uses a saved one automatically (and
+//   counts as a full day). It's used before any streak freeze, and stays after
+//   a reset.
 // `title` names a later pass, shown with its `emoji` above its timeline.
 //
 // One tier = one day of the pass's streak (see rules.js). A prize with
@@ -119,6 +124,8 @@ export const PASSES = {
         { needs: { ereader: 25 } },
         { from: "2026-11-20", needs: { ereader: 25, hsk: 25 } },
       ],
+      // Extra pomodoros from 21 Nov 2026 on are saved to cover a missed one.
+      bank: { from: "2026-11-21" },
       // Dusty indigo, to sit beside the Drampa teal on the same beige card
       colors: {
         ink: "#33466b",

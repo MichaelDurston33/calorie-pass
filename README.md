@@ -16,6 +16,11 @@ is one Supabase Edge Function, for group photos.
   the e-reader and a 25-minute HSK pomodoro. Before then, the e-reader session alone counted (from 11 Nov).
   Its prizes: £100 at day 7 of a streak, then another £100 every 14 days after that (days 21, 35, 49, ...),
   and a trip to China at day 100. It has its own streak freezes too.
+- **Pomodoro bank (Chinese pass, from 21 Nov 2026):** every extra pomodoro done on a day (a second reading
+  session, say) is banked for that tool. A later day that's missing that tool's pomodoro uses a banked one
+  automatically and counts as a full day. The bank is used before any streak freeze, a missed day is only
+  covered if every missing pomodoro has one banked, and today never uses the bank (it isn't over yet). The
+  card shows what's banked under today's progress, and 🏦 marks a day the bank covered.
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
 - **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
   to use one (it's saved with the date) or undo one used by mistake.
@@ -71,7 +76,9 @@ apikey: <the publishable key from config.js>
 - Michael is player 1. `p_minutes` is optional and defaults to 25.
 - Success is HTTP 200 with `{ "date": ..., "minutes": ... }` (that day's longest session). Anything else
   failed and is worth retrying; a wrong code gives `{ "message": "Invalid code" }`.
-- Sending twice is harmless: it just records another session.
+- Sending twice is harmless. The same length sent again within 20 minutes counts as a resend and is ignored,
+  so a retry can't add a pomodoro to the bank. Two real pomodoros always finish at least 25 minutes apart.
+  The one catch: if two sessions are saved offline and then sent together, only one counts.
 
 ### HSK, and any other tool
 

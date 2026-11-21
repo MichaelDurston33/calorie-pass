@@ -9,6 +9,9 @@
 //   Unless you have a streak freeze: one is earned every FREEZE_EVERY days of a
 //   streak, and each covers one missed day (used automatically). Freezes are
 //   kept after an ordinary reset.
+// - A study pass can have a pomodoro bank (`bank` in passes.js): extra
+//   pomodoros done on a day are saved, and one stands in for a day that's
+//   missing that tool's pomodoro, before any freeze is used (see studyRun).
 // - During Bee Jim Hardcore Mode, going over your goal also sends a calorie
 //   pass back to 0. Hardcore Mode is only about calories, so study passes
 //   carry on as normal while it's on.
@@ -84,41 +87,91 @@ export function studyOn(study, date) {
   return needs;
 }
 
-// Whether a day's sessions ({ tool: minutes }) cover everything `needs` asks for.
-export function studied(needs, sessions) {
-  return Boolean(needs) && Object.entries(needs).every(([tool, minutes]) => (sessions[tool] ?? 0) >= minutes);
+// How many pomodoros a tool's sessions on one day ([minutes, ...]) make, when
+// one needs `minutes`: each session at least that long is one.
+export function pomodoros(sessions = [], minutes) {
+  return sessions.filter((m) => m >= minutes).length;
 }
 
-// Someone's study sessions as one entry per day, oldest first, with the
-// longest session from each tool that day: [{ date, sessions: { ereader: 25, hsk: 25 } }].
+// Whether a day's sessions ({ tool: [minutes, ...] }) cover everything `needs` asks for.
+export function studied(needs, sessions) {
+  return Boolean(needs) && Object.entries(needs).every(([tool, minutes]) => pomodoros(sessions[tool], minutes) > 0);
+}
+
+// Someone's study sessions as one entry per day, oldest first, with every
+// session each tool sent that day: [{ date, sessions: { ereader: [25, 25], hsk: [25] } }].
 export function studyDays(player) {
   const days = new Map();
   for (const r of player.reading ?? []) {
     const day = days.get(r.date) ?? { date: r.date, sessions: {} };
     const tool = r.source ?? "ereader"; // before tools were recorded, only the e-reader sent sessions
-    day.sessions[tool] = Math.max(day.sessions[tool] ?? 0, r.minutes);
+    (day.sessions[tool] ??= []).push(r.minutes);
     days.set(r.date, day);
   }
   return [...days.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// The days that move a pass on, oldest first. A calorie pass counts every day
-// with calories logged ([{ date, calories, steps }]). A study pass counts days
-// with everything it needed that day ([{ date, sessions }], see studyDays).
-export function passDays(pass, player) {
-  if (!pass.study) return player.logs;
-  return studyDays(player).filter((d) => studied(studyOn(pass.study, d.date), d.sessions));
+// Plays a study pass's days from the first session up to `today`, with its
+// pomodoro bank (`bank` in passes.js). Returns:
+//   days - the days that count, oldest first: [{ date, sessions, banked: [tool, ...] }]
+//          (`banked` lists the tools a banked pomodoro stood in for that day)
+//   bank - banked pomodoros left: { tool: count }
+// From the bank's start, every pomodoro beyond the one a tool needs each day
+// is banked. A day that's over and is missing a tool's pomodoro uses a banked
+// one of that tool, if every missing tool has one; it then counts as a full
+// day. Otherwise the day is missed (and streak freezes take over) and the bank
+// is left alone. Today isn't over, so it never uses the bank.
+export function studyRun(pass, player, today) {
+  const sessionsOn = new Map(studyDays(player).map((d) => [d.date, d.sessions]));
+  const bankFrom = pass.bank?.from;
+  const bank = {};
+  const days = [];
+  const first = [...sessionsOn.keys()][0];
+  if (!first) return { days, bank };
+
+  for (let date = first; date <= today; date = addDays(date, 1)) {
+    const needs = studyOn(pass.study, date);
+    if (!needs) continue;
+    const sessions = sessionsOn.get(date) ?? {};
+    const banking = Boolean(bankFrom) && date >= bankFrom;
+    const missing = [];
+    for (const [tool, minutes] of Object.entries(needs)) {
+      const done = pomodoros(sessions[tool], minutes);
+      if (!done) missing.push(tool);
+      else if (banking && done > 1) bank[tool] = (bank[tool] ?? 0) + done - 1;
+    }
+    if (!missing.length) {
+      days.push({ date, sessions, banked: [] });
+    } else if (banking && date < today && missing.every((tool) => bank[tool] > 0)) {
+      for (const tool of missing) bank[tool]--;
+      days.push({ date, sessions, banked: missing });
+    }
+  }
+  return { days, bank };
 }
 
-// One pass's streak for one player (see playStreak). Hardcore Mode is only
-// about calories, so it doesn't touch study passes.
+// The days that move a pass on, oldest first. A calorie pass counts every day
+// with calories logged ([{ date, calories, steps }]). A study pass counts days
+// with everything it needed, from that day's sessions or the bank (see studyRun).
+export function passDays(pass, player, today) {
+  if (!pass.study) return player.logs;
+  return studyRun(pass, player, today).days;
+}
+
+// One pass's streak for one player (see playStreak), plus, for a study pass,
+// what's left in its pomodoro bank. Hardcore Mode is only about calories, so
+// it doesn't touch study passes.
 export function playPass(pass, player, { periods, today }) {
-  return playStreak(passDays(pass, player), {
-    goal: pass.goal,
-    prizes: pass.prizes,
-    periods: pass.study ? [] : periods,
-    today,
-  });
+  const study = pass.study ? studyRun(pass, player, today) : null;
+  return {
+    ...playStreak(study ? study.days : player.logs, {
+      goal: pass.goal,
+      prizes: pass.prizes,
+      periods: pass.study ? [] : periods,
+      today,
+    }),
+    bank: study?.bank ?? {},
+  };
 }
 
 // Tokens left to spend for each prize, in the same order as `prizes`: earned on

@@ -59,7 +59,12 @@ What counts as a day depends on the pass (`passDays`):
 - **A study pass** (`study` in `passes.js`) counts each day on which every tool in `needs` sent a long enough
   session (`studyOn`, `studied`). `needs` is a dated list, like `goal`. Sessions live in `reading_sessions`
   with a `source` (the tool's name). Rows from before that column existed are the e-reader's, and the client
-  treats a missing `source` as `ereader` too.
+  treats a missing `source` as `ereader` too. `get_state` returns every session, not one per day.
+- **The pomodoro bank** (`bank` on a study pass): `studyRun` walks every day from the first session to today.
+  It banks pomodoros beyond each tool's one a day, and fills a past day's missing pomodoros from the bank,
+  but only when every missing tool has one. Bank-filled days carry `banked: [tool]` and count as full days.
+  Because a resend must not bank a fake pomodoro, `submit_reading` and `submit_study` ignore a session with
+  the same source and minutes as one recorded in the last 20 minutes.
 
 Tokens are worked out as:
 - **tokens left** = earned (from `playStreak`, including any `gift`) − rows in `token_spends` with that prize's

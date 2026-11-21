@@ -1,5 +1,5 @@
 import { FREEZE_EVERY, PASSES, STUDY_TOOLS, TIMELINE_LENGTH } from "./passes.js";
-import { addDays, goalOn, hardcorePeriodOn, netCalories, playPass, prizesAt, stepKcal, studyDays, studyOn, tokensLeft, unlocksAt } from "./rules.js";
+import { addDays, goalOn, hardcorePeriodOn, netCalories, playPass, pomodoros, prizesAt, stepKcal, studyDays, studyOn, tokensLeft, unlocksAt } from "./rules.js";
 import { $, escapeHtml, fmtDay, rpc, today } from "./util.js";
 import { initJournal, openEditor, openGroupMaker, renderJournal } from "./journal.js";
 
@@ -225,7 +225,7 @@ function renderCard(player, day) {
 // is headed with the person's avatar and name, later ones with their own
 // emoji and title (e.g. "📚 Chinese").
 function renderPass(player, pass, day, first) {
-  const { run, reset, freezes, frozen } = streakFor(player, pass, day);
+  const { run, reset, freezes, frozen, bank } = streakFor(player, pass, day);
   const streak = run.length;
   // The day each tier was (or would be) reached, if the streak keeps going. A
   // prize's schedule can change from a date, so this decides which tiers have it.
@@ -242,23 +242,31 @@ function renderPass(player, pass, day, first) {
     Math.ceil((streak + 1) / TIMELINE_LENGTH) * TIMELINE_LENGTH,
     ...upcoming.map((p) => p.tier)
   );
-  const tiers = reset ? [renderReset(reset, pass)] : [];
+  const tiers = reset ? [renderReset(reset, pass, player)] : [];
   for (let t = 1; t <= end; t++) {
     tiers.push(renderTier(t, run[t - 1], streak, prizesAt(pass.prizes, t, dateOf(t)), pass));
   }
 
-  // What today still needs: calories logged, or a session from each study tool.
+  // What today still needs: calories logged, or a pomodoro from each study tool
+  // ("×2" when there's an extra one for the bank), then what's in the bank.
   let todayChips;
   if (pass.study) {
     const sessions = studyDays(player).find((d) => d.date === day)?.sessions ?? {};
-    todayChips = needsOn(pass, day)
+    const needs = needsOn(pass, day);
+    todayChips = needs
       .map(([tool, minutes]) => {
         const t = toolInfo(tool);
-        return (sessions[tool] ?? 0) >= minutes
-          ? `<span class="today is-done">${escapeHtml(`${t.icon} ${t.done}`)}</span>`
+        const done = pomodoros(sessions[tool], minutes);
+        return done
+          ? `<span class="today is-done">${escapeHtml(`${t.icon} ${t.done}${done > 1 ? ` ×${done}` : ""}`)}</span>`
           : `<span class="today">${escapeHtml(`${t.icon} ${t.todo}`)}</span>`;
       })
       .join(" ");
+    if (pass.bank && day >= pass.bank.from) {
+      const saved = needs.map(([tool]) => `${toolInfo(tool).icon} ${bank[tool] ?? 0}`).join(" · ");
+      const title = "Extra pomodoros you've done. One is used automatically to cover a day that's missing that pomodoro.";
+      todayChips += `<span class="today bank" title="${escapeHtml(title)}">${escapeHtml(`🏦 Banked: ${saved}`)}</span>`;
+    }
   } else {
     todayChips = player.logs.some((l) => l.date === day)
       ? `<span class="today is-done">✓ Logged today</span>`
@@ -353,12 +361,15 @@ function renderTier(t, log, streak, rewards, pass) {
 }
 
 // Tier 0: what ended the last streak, so it stays visible to both of you.
-function renderReset(reset, pass) {
+function renderReset(reset, pass, player) {
   let title;
   if (!reset.missed) {
     title = `Streak reset: ${fmtKcal(reset.calories)} kcal net on ${fmtDay(reset.date)}, over the ${fmtKcal(reset.goal)} kcal Hardcore goal`;
   } else if (pass.study) {
-    title = `Streak reset: ${fmtDay(reset.date)} didn't have ${describeNeeds(needsOn(pass, reset.date))}`;
+    // Just the pomodoros that day was missing, not everything it needed.
+    const sessions = studyDays(player).find((d) => d.date === reset.date)?.sessions ?? {};
+    const missing = needsOn(pass, reset.date).filter(([tool, minutes]) => !pomodoros(sessions[tool], minutes));
+    title = `Streak reset: ${fmtDay(reset.date)} didn't have ${describeNeeds(missing)}`;
   } else {
     title = `Streak reset: nothing logged on ${fmtDay(reset.date)}`;
   }
@@ -392,18 +403,29 @@ function toolInfo(tool) {
   return STUDY_TOOLS[tool] ?? { name: tool, icon: "⏱️", done: `${tool} done today`, todo: `No ${tool} today` };
 }
 
-// The lines under a study tier: "25 min", or "📖 25" and "📝 25" when the day needed several tools.
+// Minutes of full pomodoros a tool did on a study day, added up: 50 for two.
+function minutesOn(log, tool, minutes) {
+  return (log.sessions[tool] ?? []).filter((m) => m >= minutes).reduce((sum, m) => sum + m, 0);
+}
+
+// The lines under a study tier: "25 min", or "📖 25" and "📝 25" when the day
+// needed several tools. A tool covered by a banked pomodoro shows 🏦.
 function studyEntry(log, pass) {
   const needs = needsOn(pass, log.date);
-  if (needs.length === 1) return [`${log.sessions[needs[0][0]]} min`, ""];
-  const lines = needs.map(([tool]) => `${toolInfo(tool).icon} ${log.sessions[tool]}`);
+  const show = ([tool, minutes]) => (log.banked?.includes(tool) ? "🏦" : minutesOn(log, tool, minutes));
+  if (needs.length === 1) return [log.banked?.length ? "🏦 banked" : `${show(needs[0])} min`, ""];
+  const lines = needs.map((need) => `${toolInfo(need[0]).icon} ${show(need)}`);
   return [lines[0], lines.slice(1).join(" ")];
 }
 
-// "25 min e-reader + 25 min HSK"
+// "50 min e-reader + a banked HSK pomodoro"
 function describeStudy(log, pass) {
   return needsOn(pass, log.date)
-    .map(([tool]) => `${log.sessions[tool]} min ${toolInfo(tool).name}`)
+    .map(([tool, minutes]) =>
+      log.banked?.includes(tool)
+        ? `a banked ${toolInfo(tool).name} pomodoro`
+        : `${minutesOn(log, tool, minutes)} min ${toolInfo(tool).name}`
+    )
     .join(" + ");
 }
 
