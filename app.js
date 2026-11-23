@@ -150,14 +150,17 @@ const BEE_JIM = {
   },
 };
 
-// Whether someone's calorie streak has broken: it was reset, and it's at 0 or
-// only started again today. A streak still going from yesterday, including one
-// a freeze carried over a missed day, has held.
+// Whether someone's calorie streak broke by the end of yesterday. Today is left
+// out because it isn't over: the Yazio sync sends part of a day at 20:00, and
+// in Hardcore Mode a day can look over goal until the rest of its steps arrive.
+// A streak still going from yesterday, including one a freeze carried over a
+// missed day, has held.
 function calorieStreakBroken(player, day) {
   const pass = caloriePass(player);
   if (!pass) return false;
-  const { run, reset } = streakFor(player, pass, day);
-  return Boolean(reset) && (run.length === 0 || run[0].date >= day);
+  const finished = { ...player, logs: player.logs.filter((l) => l.date < day) };
+  const { run, reset } = streakFor(finished, pass, day);
+  return Boolean(reset) && run.length === 0;
 }
 
 function showBeeJim(me, day) {

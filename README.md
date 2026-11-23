@@ -28,7 +28,8 @@ is one Supabase Edge Function, for group photos.
 - **Bee Jim's daily visit:** the first time the app opens each day (on each phone or computer), Bee Jim
   appears. If your calorie streak has broken, he's awake: "You have broken your streak. Bee Jim is coming for
   you." If it held, he's asleep: "You have kept your streak. Bee Jim remains asleep. You are safe for now."
-  He doesn't appear on the Journal tab.
+  He only judges finished days, up to yesterday, because today isn't over: a part-day sync can make today
+  look over goal in Hardcore until the rest of its steps arrive. He doesn't appear on the Journal tab.
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
 - **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
   to use one (it's saved with the date) or undo one used by mistake.
