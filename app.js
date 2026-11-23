@@ -125,8 +125,60 @@ function showMain(me) {
   else {
     renderPasses(day);
     renderHardcoreCard(me, day, period);
+    // Like the Hardcore frame, Bee Jim stays off the journal.
+    showBeeJim(me, day);
   }
 }
+
+// ---------- Bee Jim's daily visit ----------
+// The first time each day the pass is opened on a device, Bee Jim appears:
+// awake and coming for you if your calorie streak has broken, asleep if it
+// held. The pictures are made by tools/make-bee-jim.mjs, with these words on.
+
+const BEE_JIM_KEY = "calorie-pass-bee-jim"; // the last day he appeared on this device
+
+const BEE_JIM = {
+  awake: {
+    src: "static/bee-jim-awake.jpg",
+    words: "You have broken your streak. Bee Jim is coming for you.",
+    button: "I'll get back on track",
+  },
+  asleep: {
+    src: "static/bee-jim-asleep.jpg",
+    words: "You have kept your streak. Bee Jim remains asleep. You are safe for now.",
+    button: "Phew!",
+  },
+};
+
+// Whether someone's calorie streak has broken: it was reset, and it's at 0 or
+// only started again today. A streak still going from yesterday, including one
+// a freeze carried over a missed day, has held.
+function calorieStreakBroken(player, day) {
+  const pass = caloriePass(player);
+  if (!pass) return false;
+  const { run, reset } = streakFor(player, pass, day);
+  return Boolean(reset) && (run.length === 0 || run[0].date >= day);
+}
+
+function showBeeJim(me, day) {
+  // Nobody with nothing logged yet has a streak to keep or break.
+  if (!caloriePass(me) || !me.logs.length || storageGet(BEE_JIM_KEY) === day) return;
+  const visit = BEE_JIM[calorieStreakBroken(me, day) ? "awake" : "asleep"];
+  const img = $("bee-jim-img");
+  img.alt = visit.words; // the words are painted on, so screen readers get them here
+  $("bee-jim-close").textContent = visit.button;
+  // He only appears once the picture has loaded, so he never pops up blank,
+  // and the day only counts as seen then (a failed load tries again next time).
+  img.onload = () => {
+    storageSet(BEE_JIM_KEY, day);
+    if (!$("bee-jim").open) $("bee-jim").showModal();
+  };
+  img.src = visit.src;
+}
+
+$("bee-jim").addEventListener("click", (e) => {
+  if (e.target === $("bee-jim") || e.target.closest("#bee-jim-close")) $("bee-jim").close(); // backdrop or button
+});
 
 function renderPasses(day) {
   $("passes").innerHTML = inPassOrder(players).map((p) => renderCard(p, day)).join("");

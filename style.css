@@ -556,6 +556,38 @@ body.hardcore .hc-frame {
 button.token { cursor: pointer; }
 button.token::after { content: "›"; margin-left: 2px; opacity: 0.6; }
 
+/* ---------- Bee Jim's daily visit ---------- */
+/* The painting on its own over a dark backdrop, with one button under it. */
+.bee-jim {
+  width: min(100% - 32px, 440px);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+.bee-jim::backdrop { background: rgba(18, 14, 8, 0.88); }
+.bee-jim img {
+  display: block;
+  width: 100%;
+  max-height: calc(100dvh - 120px);
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+}
+.bee-jim button {
+  display: block;
+  margin: 16px auto 0;
+  padding: 10px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--hc-honey);
+  color: var(--hc-ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* ---------- Sheets (pop-up dialogs) ---------- */
 
 .sheet {

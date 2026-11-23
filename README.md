@@ -25,6 +25,10 @@ is one Supabase Edge Function, for group photos.
   its own streak, separate from her calories. A day counts once she logs how many reps she did, in the box on
   that timeline. She can log today, or yesterday the next morning if she forgot, and logging a day again
   replaces its reps. It has no prizes, but it has its own streak freezes.
+- **Bee Jim's daily visit:** the first time the app opens each day (on each phone or computer), Bee Jim
+  appears. If your calorie streak has broken, he's awake: "You have broken your streak. Bee Jim is coming for
+  you." If it held, he's asleep: "You have kept your streak. Bee Jim remains asleep. You are safe for now."
+  He doesn't appear on the Journal tab.
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
 - **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
   to use one (it's saved with the date) or undo one used by mistake.
@@ -58,6 +62,9 @@ is one Supabase Edge Function, for group photos.
 - The journal's frames, backgrounds, tapes and fonts: [journal-palette.js](journal-palette.js)
 - The streak rules: [rules.js](rules.js)
 - Look and feel: [style.css](style.css)
+- The Bee Jim pictures: remake them with [tools/make-bee-jim.mjs](tools/make-bee-jim.mjs), which needs an
+  OpenAI key in a `.env` file (the top of that file says how). The wording on them must match `BEE_JIM` in
+  [app.js](app.js).
 - The logo: replace [static/logo.png](static/logo.png), then remake the tab and app icons with
   `powershell -ExecutionPolicy Bypass -File tools\make-icons.ps1`
 

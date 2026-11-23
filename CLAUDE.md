@@ -30,6 +30,10 @@ There is no build, lint or test tooling, and no tests are committed.
   site will error on any new or changed function, so say so plainly whenever a change needs this.
 - **Edge function changes:** edit the repo file, then Michael pastes it into Supabase's dashboard editor
   (Edge Functions > group-photo) and redeploys. There's no CLI deploy, so the repo copy is the source of truth.
+- **Bee Jim pictures:** `node tools/make-bee-jim.mjs [awake|asleep]` remakes `static/bee-jim-*.jpg` with
+  OpenAI. It reads `OPENAI_API_KEY` from a gitignored `.env`, which Michael creates when it's needed and
+  deletes afterwards. Never print the key or ask for it in chat. The asleep picture is drawn from the awake
+  one, so remaking awake means remaking asleep too.
 
 ## Architecture
 
@@ -111,7 +115,8 @@ Consequences:
 - A new RPC needs a `grant execute on function name(<full arg types>) to anon;` line at the bottom of
   `schema.sql`.
 - The publishable key in `config.js` is meant to be public. The OpenAI key exists only as the Supabase secret
-  `OPENAI_API_KEY`.
+  `OPENAI_API_KEY`, apart from a separate key that lives in a local `.env` only while the Bee Jim pictures are
+  being remade.
 
 ### schema.sql is re-run whole
 
@@ -139,7 +144,10 @@ Not everything goes through this site, so keep these signatures stable or update
 - `journal.js` is the photo journal. `app.js` calls `initJournal(ctx)` with accessors (`players`, `journalFor`,
   `tokensFor`, `apply`, `refresh`, …), so the journal doesn't import app state.
 - The view is chosen by the URL hash (`#journal`), and the tab only appears if some pass has `journal`.
-- The Hardcore bee/zombie frame (`body.hardcore`) is deliberately hidden on the journal view.
+- The Hardcore bee/zombie frame (`body.hardcore`) is deliberately hidden on the journal view, and so is Bee
+  Jim's daily visit. That's the `#bee-jim` dialog: the first time the pass view loads each day on a device
+  (localStorage `calorie-pass-bee-jim`), it shows the awake picture if `calorieStreakBroken`, otherwise the
+  asleep one.
 - Each player is one card (`renderCard`), in their first pass's colours, with one timeline (`.lane`) per pass.
   Colours are CSS variables from `pass.colors` (`themeStyle`); a later pass sets them on its own lane, so it
   leaves out `bg` and `border` to match the card. The journal page's colours
