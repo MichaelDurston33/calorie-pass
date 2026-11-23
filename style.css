@@ -195,6 +195,25 @@ button:disabled { opacity: 0.6; }
 /* The pomodoro bank sits on its own line under today's progress. */
 .today.bank { display: block; }
 
+/* The reps box on your own workout pass: one row, in the pass's colours. */
+.workout-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.workout-form input { flex: 1 1 90px; min-width: 0; background: #fff; }
+.workout-form select { flex: 0 0 auto; background: #fff; }
+.workout-form button[type="submit"] {
+  flex: 0 0 auto;
+  margin-top: 0;
+  background: var(--pass-node);
+  border-color: var(--pass-node);
+}
+.workout-form .error { flex-basis: 100%; min-height: 0; font-size: 0.85rem; }
+.workout-form .error:empty { display: none; }
+
 .goal {
   display: inline-block;
   white-space: nowrap;

@@ -36,7 +36,7 @@ There is no build, lint or test tooling, and no tests are committed.
 ### Data flow: one big read, server-computed nothing
 
 - `get_state(p_code)` returns everything in one JSON blob:
-  - every player's full calorie logs, reading sessions, token spends, journal entries and group photos;
+  - every player's full calorie logs, reading sessions, workouts, token spends, journal entries and group photos;
   - Hardcore periods and opt-ins.
 - Photos are left out of that blob (see below).
 - Every write RPC (`submit_log`, `spend_token`, `save_journal_entry`, …) returns `get_state` again. The page then
@@ -45,9 +45,10 @@ There is no build, lint or test tooling, and no tests are committed.
 
 ### Game logic lives in the browser, not the database
 
-The database stores raw facts only: logs, reading sessions, Hardcore periods, token spends and journal rows.
+The database stores raw facts only: logs, reading sessions, workouts, Hardcore periods, token spends and journal rows.
 
-A player can have several passes (Michael has a calorie pass and a Chinese study pass). On every render,
+A player can have several passes (Michael has a calorie pass and a Chinese study pass; Abbie has a calorie pass
+and a Lift weights workout pass). On every render,
 `rules.js` `playPass` replays each pass from scratch and derives:
 - the streak (which is also their tier);
 - prizes earned;
@@ -65,6 +66,11 @@ What counts as a day depends on the pass (`passDays`):
   but only when every missing tool has one. Bank-filled days carry `banked: [tool]` and count as full days.
   Because a resend must not bank a fake pomodoro, `submit_reading` and `submit_study` ignore a session with
   the same source and minutes as one recorded in the last 20 minutes.
+- **A workout pass** (`workout: true` in `passes.js`, Abbie's Lift weights) counts each day with a row in
+  `workouts` (`{ date, reps }`, one per player per day). Unlike the other kinds, it's logged on the site itself:
+  the owner's lane has a reps box (`renderWorkoutForm`) that calls `submit_workout` for today or yesterday.
+  `isCaloriePass` in `rules.js` tells calorie passes apart from study and workout passes; only calorie passes
+  get Hardcore Mode and supply the Hardcore goal.
 
 Tokens are worked out as:
 - **tokens left** = earned (from `playStreak`, including any `gift`) − rows in `token_spends` with that prize's

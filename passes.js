@@ -17,6 +17,10 @@
 //     study: [{ needs: { ereader: 25 } }, { from: "2026-12-01", needs: { ereader: 25, hsk: 25 } }]
 //   The tools are in STUDY_TOOLS below. Bee Jim Hardcore Mode doesn't apply to
 //   study passes.
+// - `workout: true` makes it a workout pass instead: a day counts once its reps
+//   are logged in the box on that pass's timeline (today's, or yesterday's the
+//   next morning). Any number of reps counts; they're the proof it was done.
+//   Bee Jim Hardcore Mode doesn't apply to workout passes.
 // - `bank: { from: "2026-11-21" }` gives a study pass a pomodoro bank from that
 //   day: each pomodoro beyond the one a tool needs that day is saved, and a
 //   later day missing that tool's pomodoro uses a saved one automatically (and
@@ -94,6 +98,20 @@ export const PASSES = {
         { every: [{ from: "2026-11-16", days: 50 }], name: "Group Photo!", icon: "📸", gift: 3 },
       ],
       journal: { prize: "Plushie", groupPrize: "Group Photo!", title: "Plushie Journal" },
+    },
+    {
+      // Weight lifting, separate from calories (from 23 Nov 2026). Abbie logs
+      // her reps on the page each day she lifts. No prizes, just the streak.
+      title: "Lift weights",
+      emoji: "🏋️‍♀️",
+      workout: true,
+      // Coral, to stand out from the lime and teal on the same card
+      colors: {
+        ink: "#a2472b",
+        line: "#e8825c",
+        node: "#e8825c",
+      },
+      prizes: [],
     },
   ],
 

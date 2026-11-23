@@ -4,7 +4,8 @@
 //
 // - Do the pass's thing every day to keep its streak going. For a calorie pass
 //   that's logging your calories; for a study pass (`study` in passes.js) it's
-//   a long enough session from each study tool it needs (the e-reader, HSK).
+//   a long enough session from each study tool it needs (the e-reader, HSK);
+//   for a workout pass (`workout`) it's logging that day's reps.
 // - Miss a day, in either mode, and your streak goes back to 0.
 //   Unless you have a streak freeze: one is earned every FREEZE_EVERY days of a
 //   streak, and each covers one missed day (used automatically). Freezes are
@@ -13,8 +14,8 @@
 //   pomodoros done on a day are saved, and one stands in for a day that's
 //   missing that tool's pomodoro, before any freeze is used (see studyRun).
 // - During Bee Jim Hardcore Mode, going over your goal also sends a calorie
-//   pass back to 0. Hardcore Mode is only about calories, so study passes
-//   carry on as normal while it's on.
+//   pass back to 0. Hardcore Mode is only about calories, so study and
+//   workout passes carry on as normal while it's on.
 //   Logged steps count: the goal is checked against calories eaten minus steps.
 //   A Bee Jim failure is final: freezes can't cover any day in Hardcore (going
 //   over goal or missing a day), and failing wipes out every freeze you have.
@@ -150,24 +151,31 @@ export function studyRun(pass, player, today) {
   return { days, bank };
 }
 
+// Whether a pass is about calories: neither a study pass nor a workout pass.
+export function isCaloriePass(pass) {
+  return !pass.study && !pass.workout;
+}
+
 // The days that move a pass on, oldest first. A calorie pass counts every day
 // with calories logged ([{ date, calories, steps }]). A study pass counts days
 // with everything it needed, from that day's sessions or the bank (see studyRun).
+// A workout pass counts every day with reps logged ([{ date, reps }]).
 export function passDays(pass, player, today) {
+  if (pass.workout) return player.workouts ?? [];
   if (!pass.study) return player.logs;
   return studyRun(pass, player, today).days;
 }
 
 // One pass's streak for one player (see playStreak), plus, for a study pass,
 // what's left in its pomodoro bank. Hardcore Mode is only about calories, so
-// it doesn't touch study passes.
+// it doesn't touch study or workout passes.
 export function playPass(pass, player, { periods, today }) {
   const study = pass.study ? studyRun(pass, player, today) : null;
   return {
-    ...playStreak(study ? study.days : player.logs, {
+    ...playStreak(study ? study.days : passDays(pass, player, today), {
       goal: pass.goal,
       prizes: pass.prizes,
-      periods: pass.study ? [] : periods,
+      periods: isCaloriePass(pass) ? periods : [],
       today,
     }),
     bank: study?.bank ?? {},

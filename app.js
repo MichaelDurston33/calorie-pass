@@ -1,5 +1,5 @@
 import { FREEZE_EVERY, PASSES, STUDY_TOOLS, TIMELINE_LENGTH } from "./passes.js";
-import { addDays, goalOn, hardcorePeriodOn, netCalories, playPass, pomodoros, prizesAt, stepKcal, studyDays, studyOn, tokensLeft, unlocksAt } from "./rules.js";
+import { addDays, goalOn, hardcorePeriodOn, isCaloriePass, netCalories, playPass, pomodoros, prizesAt, stepKcal, studyDays, studyOn, tokensLeft, unlocksAt } from "./rules.js";
 import { $, escapeHtml, fmtDay, rpc, today } from "./util.js";
 import { initJournal, openEditor, openGroupMaker, renderJournal } from "./journal.js";
 
@@ -22,7 +22,7 @@ function storageRemove(key) {
 let code = storageGet(CODE_KEY);
 let myId = storageGet(PLAYER_KEY);
 // [{ id, name, logs: [{ date, calories, steps }], reading: [{ date, source, minutes }],
-//    spends: [{ id, prize, date }], journal: [{ id, name, species, date, style, spendId }],
+//    workouts: [{ date, reps }], spends: [{ id, prize, date }], journal: [{ id, name, species, date, style, spendId }],
 //    groupPhotos: [{ id, status, error, prompt, caption, date, style, spendId, shownAt, createdAt }] }], oldest first
 let players = [];
 let hardcore = { periods: [], optins: [] }; // periods: [{ start, end }], optins: [player id]
@@ -159,7 +159,7 @@ function mainPass(player) {
 
 // The pass their calories count towards, which has their Hardcore goal.
 function caloriePass(player) {
-  return passesFor(player).find((pass) => !pass.study);
+  return passesFor(player).find(isCaloriePass);
 }
 
 // Their photo journal's settings, if they have one.
@@ -267,6 +267,11 @@ function renderPass(player, pass, day, first) {
       const title = "Extra pomodoros you've done. One is used automatically to cover a day that's missing that pomodoro.";
       todayChips += `<span class="today bank" title="${escapeHtml(title)}">${escapeHtml(`🏦 Banked: ${saved}`)}</span>`;
     }
+  } else if (pass.workout) {
+    const done = (player.workouts ?? []).find((w) => w.date === day);
+    todayChips = done
+      ? `<span class="today is-done">${escapeHtml(`✓ Done today: ${fmtKcal(done.reps)} reps`)}</span>`
+      : `<span class="today">Not done today</span>`;
   } else {
     todayChips = player.logs.some((l) => l.date === day)
       ? `<span class="today is-done">✓ Logged today</span>`
@@ -292,6 +297,7 @@ function renderPass(player, pass, day, first) {
           ${renderFreezes(streak, freezes, frozen)}
         </div>
       </header>
+      ${pass.workout && isMe(player) ? renderWorkoutForm() : ""}
       <div class="timeline-wrap">
         <button class="scroll-btn" type="button" data-dir="-1" aria-label="Scroll back">‹</button>
         <div class="timeline"><ol class="tiers">${tiers.join("")}</ol></div>
@@ -299,6 +305,22 @@ function renderPass(player, pass, day, first) {
       </div>
       ${renderFooter(streak, pass.prizes, upcoming, tokensFor(player, day).filter((t) => t.pass === pass), isMe(player))}
     </div>`;
+}
+
+// The box on your own workout pass for logging the day's reps. Yesterday is
+// there so a forgotten day can still be logged the next morning (the database
+// takes nothing older). Logging a day again replaces its reps.
+function renderWorkoutForm() {
+  return `
+    <form class="workout-form">
+      <input name="reps" type="number" inputmode="numeric" min="1" max="10000" placeholder="Reps" aria-label="Reps done" required>
+      <select name="day" aria-label="Which day">
+        <option value="0">Today</option>
+        <option value="-1">Yesterday</option>
+      </select>
+      <button type="submit">Log it</button>
+      <p class="error workout-error"></p>
+    </form>`;
 }
 
 // "❄️ 2" under the streak, with when the next one comes and the last day one covered.
@@ -315,7 +337,8 @@ function renderFreezes(streak, freezes, frozen) {
 }
 
 // `log` is the day that earned this tier, if it's been earned: calories logged
-// on a calorie pass, or that day's study sessions on a study pass.
+// on a calorie pass, that day's study sessions on a study pass, or the reps
+// done on a workout pass.
 // `rewards` are the prizes that unlock at this tier.
 function renderTier(t, log, streak, rewards, pass) {
   const earned = t <= streak;
@@ -324,7 +347,7 @@ function renderTier(t, log, streak, rewards, pass) {
     .join(" ");
   const title = [
     `Tier ${t}`,
-    log && `${fmtDay(log.date)}: ${pass.study ? describeStudy(log, pass) : describeDay(log)}${log.hardcore ? " (Hardcore)" : ""}`,
+    log && `${fmtDay(log.date)}: ${describeLog(log, pass)}${log.hardcore ? " (Hardcore)" : ""}`,
     rewards.length && rewards.map((r) => r.name).join(" + "),
   ]
     .filter(Boolean)
@@ -355,7 +378,7 @@ function renderTier(t, log, streak, rewards, pass) {
     <li class="${cls}" title="${escapeHtml(title)}">
       <span class="tier-num">${t}</span>
       <span class="rail"><span class="node"></span></span>
-      ${log ? renderEntry(...(pass.study ? studyEntry(log, pass) : calorieEntry(log)), log.date) : renderEntry()}
+      ${log ? renderEntry(...logEntry(log, pass), log.date) : renderEntry()}
       ${cards}
     </li>`;
 }
@@ -370,6 +393,8 @@ function renderReset(reset, pass, player) {
     const sessions = studyDays(player).find((d) => d.date === reset.date)?.sessions ?? {};
     const missing = needsOn(pass, reset.date).filter(([tool, minutes]) => !pomodoros(sessions[tool], minutes));
     title = `Streak reset: ${fmtDay(reset.date)} didn't have ${describeNeeds(missing)}`;
+  } else if (pass.workout) {
+    title = `Streak reset: no reps logged on ${fmtDay(reset.date)}`;
   } else {
     title = `Streak reset: nothing logged on ${fmtDay(reset.date)}`;
   }
@@ -386,6 +411,20 @@ function describeDay(log) {
   if (!log.steps) return `${fmtKcal(log.calories)} kcal`;
   const burned = stepKcal(log.steps);
   return `${fmtKcal(log.calories)} kcal − ${fmtKcal(burned)} kcal from ${fmtKcal(log.steps)} steps = ${fmtKcal(log.calories - burned)} kcal net`;
+}
+
+// What earned a tier, in words, for its tooltip.
+function describeLog(log, pass) {
+  if (pass.study) return describeStudy(log, pass);
+  if (pass.workout) return `${fmtKcal(log.reps)} reps`;
+  return describeDay(log);
+}
+
+// The two lines under an earned tier, whichever kind of pass it's on.
+function logEntry(log, pass) {
+  if (pass.study) return studyEntry(log, pass);
+  if (pass.workout) return [fmtKcal(log.reps), "reps"];
+  return calorieEntry(log);
 }
 
 // The two lines under a calorie tier: "1,850" and, if steps were logged, "👟 −200".
@@ -714,6 +753,29 @@ $("hardcore").addEventListener("click", async (e) => {
   } catch (err) {
     button.disabled = false;
     button.insertAdjacentHTML("afterend", `<p class="error">${escapeHtml(err.message)}</p>`);
+  }
+});
+
+// Logging reps on your own workout pass, for today or yesterday.
+$("passes").addEventListener("submit", async (e) => {
+  const form = e.target.closest(".workout-form");
+  if (!form) return;
+  e.preventDefault();
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    setState(
+      await rpc("submit_workout", {
+        p_code: code,
+        p_player_id: Number(myId),
+        p_date: addDays(today(), Number(form.elements.day.value)),
+        p_reps: Number(form.elements.reps.value),
+      })
+    );
+    show();
+  } catch (err) {
+    form.querySelector(".workout-error").textContent = `Couldn't save: ${err.message}`;
+    button.disabled = false;
   }
 });
 

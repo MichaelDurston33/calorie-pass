@@ -106,6 +106,18 @@ create table if not exists group_photos (
   created_at timestamptz not null default now()
 );
 
+-- Workouts: each day someone did a workout pass's exercise (Abbie's weight
+-- lifting, see `workout` in passes.js), with how many reps they did as proof.
+-- One row per person per day: logging the day again replaces its reps.
+create table if not exists workouts (
+  id bigserial primary key,
+  player_id int not null references players(id) on delete cascade,
+  workout_date date not null,
+  reps int not null check (reps between 1 and 10000),
+  created_at timestamptz not null default now(),
+  unique (player_id, workout_date)
+);
+
 -- ---------- Lock everything down ----------
 -- RLS on with no policies = the website can't touch these tables directly.
 -- All access goes through the functions below, which check the access code.
@@ -119,6 +131,7 @@ alter table reading_sessions enable row level security;
 alter table token_spends enable row level security;
 alter table journal_entries enable row level security;
 alter table group_photos enable row level security;
+alter table workouts enable row level security;
 
 -- ---------- Functions ----------
 
@@ -166,6 +179,13 @@ begin
                                    order by r.session_date, r.source, r.id), '[]'::json)
           from reading_sessions r
           where r.player_id = p.id
+        ),
+        -- Workout days and their reps, for workout passes (see passes.js).
+        'workouts', (
+          select coalesce(json_agg(json_build_object('date', w.workout_date, 'reps', w.reps)
+                                   order by w.workout_date), '[]'::json)
+          from workouts w
+          where w.player_id = p.id
         ),
         'spends', (
           select coalesce(json_agg(json_build_object('id', s.id, 'prize', s.prize, 'date', s.spent_on)
@@ -321,6 +341,36 @@ begin
     'minutes', (select max(minutes) from reading_sessions
                 where player_id = p_player_id and session_date = p_date and source = v_source)
   );
+end;
+$$;
+
+-- Log (or correct) a day's workout on a workout pass: how many reps were done.
+-- Logging the same day again replaces its reps. As with calories, only today
+-- or yesterday can be logged, so a forgotten day can be added the next morning.
+create or replace function submit_workout(p_code text, p_player_id int, p_date date, p_reps int)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform check_code(p_code);
+
+  if p_date not between current_date - 1 and current_date + 1 then
+    raise exception 'Date out of range';
+  end if;
+  if not exists (select 1 from players where id = p_player_id) then
+    raise exception 'Unknown player';
+  end if;
+  if p_reps is null or p_reps not between 1 and 10000 then
+    raise exception 'Reps must be between 1 and 10,000';
+  end if;
+
+  insert into workouts (player_id, workout_date, reps)
+  values (p_player_id, p_date, p_reps)
+  on conflict (player_id, workout_date) do update set reps = excluded.reps;
+
+  return get_state(p_code);
 end;
 $$;
 
@@ -657,6 +707,7 @@ grant execute on function submit_log(text, int, int, date, int) to anon;
 grant execute on function set_hardcore_optin(text, int, boolean, date) to anon;
 grant execute on function submit_reading(text, int, date, int) to anon;
 grant execute on function submit_study(text, int, text, date, int) to anon;
+grant execute on function submit_workout(text, int, date, int) to anon;
 grant execute on function spend_token(text, int, text, date) to anon;
 grant execute on function unspend_token(text, int, bigint) to anon;
 grant execute on function save_journal_entry(text, int, bigint, text, date, text, jsonb, bigint, text, text) to anon;
@@ -693,6 +744,18 @@ where p.name = 'Michael'
   and not exists (select 1 from reading_sessions r
                   where r.player_id = p.id and r.session_date = date '2026-11-20'
                     and r.source = 'ereader' and r.minutes >= 25);
+
+-- Michael's HSK pomodoro on 22 Nov 2026 wasn't recorded, which reset his
+-- Chinese streak, so its 25-minute session is added by hand. With 20 Nov above,
+-- the streak runs unbroken from 11 Nov. Only added if that day has no HSK
+-- session of 25 minutes or more, so re-running this never adds a second.
+insert into reading_sessions (player_id, session_date, minutes, source)
+select p.id, date '2026-11-22', 25, 'hsk'
+from players p
+where p.name = 'Michael'
+  and not exists (select 1 from reading_sessions r
+                  where r.player_id = p.id and r.session_date = date '2026-11-22'
+                    and r.source = 'hsk' and r.minutes >= 25);
 
 -- To set your real shared code, run:
 --   update settings set value = 'your-secret-code' where key = 'access_code';

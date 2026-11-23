@@ -21,6 +21,10 @@ is one Supabase Edge Function, for group photos.
   automatically and counts as a full day. The bank is used before any streak freeze, a missed day is only
   covered if every missing pomodoro has one banked, and today never uses the bank (it isn't over yet). The
   card shows what's banked under today's progress, and 🏦 marks a day the bank covered.
+- **Abbie's Lift weights pass (from 23 Nov 2026):** a second timeline on Abbie's card (🏋️‍♀️ Lift weights), with
+  its own streak, separate from her calories. A day counts once she logs how many reps she did, in the box on
+  that timeline. She can log today, or yesterday the next morning if she forgot, and logging a day again
+  replaces its reps. It has no prizes, but it has its own streak freezes.
 - Prizes you've earned are kept after a reset, and you earn them again as you climb back up.
 - **Tokens:** each prize earned is a token to spend. Tap your token count at the bottom of your pass
   to use one (it's saved with the date) or undo one used by mistake.
@@ -31,7 +35,8 @@ is one Supabase Edge Function, for group photos.
   Plushie token.
 - **Group photos:** a Group Photo token turns the plushies into a picture of them all alive together,
   doing whatever Abbie types ("all camping together"). It goes across the top of the journal.
-- Everyone's calories (or minutes studied, on the Chinese pass) are shown under each day of their pass, and a
+- Everyone's calories (or minutes studied on the Chinese pass, or reps on Lift weights) are shown under each
+  day of their pass, and a
   💥 marks what ended the last streak.
 
 ## Setup
