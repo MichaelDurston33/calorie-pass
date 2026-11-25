@@ -118,7 +118,7 @@ export const PASSES = {
   Michael: [
     {
       emoji: "🧌",
-      goal: [{ kcal: 1900 }, { from: "2026-10-20", kcal: 2100 }],
+      goal: [{ kcal: 1900 }, { from: "2026-10-20", kcal: 2100 }, { from: "2026-11-25", kcal: 2300 }],
       // Drampa blue and Drampa beige
       colors: {
         bg: "#f4efe1", // panel
